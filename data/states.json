@@ -1,0 +1,742 @@
+[
+  {
+    "abbr": "AK",
+    "name": "Alaska",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1xlcCizX-3vS8Rzv3NwIN_1DSFWae7TUB",
+    "center": [
+      61.88231523231851,
+      -149.62106427303297
+    ],
+    "zoom": 4,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1xlcCizX-3vS8Rzv3NwIN_1DSFWae7TUB",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "AL",
+    "name": "Alabama",
+    "region": "state",
+    "type": "viewer",
+    "mid": "16bsIQTnNGGdF9V_PmCW1edkHOokz9A6N",
+    "center": [
+      32.651784348769304,
+      -86.70811615
+    ],
+    "zoom": 7,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=16bsIQTnNGGdF9V_PmCW1edkHOokz9A6N",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "AR",
+    "name": "Arkansas",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1y98ZY_VJX0lmCvgk2f5jOm8_qmOIKe6_",
+    "center": [
+      34.83671970220963,
+      -92.54512854643701
+    ],
+    "zoom": 8,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1y98ZY_VJX0lmCvgk2f5jOm8_qmOIKe6_",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "AS",
+    "name": "American Samoa",
+    "region": "territory",
+    "type": "edit",
+    "mid": "1kNsBxLC7LaVflxcd-G3LNvyVQ0W1XQs",
+    "center": null,
+    "zoom": null,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1kNsBxLC7LaVflxcd-G3LNvyVQ0W1XQs",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "AZ",
+    "name": "Arizona",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1TBRNx_IO0tsOx0hOPVbfFjXXWThFAK0",
+    "center": [
+      34.18911788155684,
+      -111.88916745000002
+    ],
+    "zoom": 7,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1TBRNx_IO0tsOx0hOPVbfFjXXWThFAK0",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "CA",
+    "name": "California",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1HFlrZUI1TZzUK9qekFcBR_Jg0cXGcvg6",
+    "center": [
+      38.88609507147788,
+      -120.95677609843749
+    ],
+    "zoom": 7,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1HFlrZUI1TZzUK9qekFcBR_Jg0cXGcvg6",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "CO",
+    "name": "Colorado",
+    "region": "state",
+    "type": "viewer",
+    "mid": "14HesK3z8RV04nJweRGsHcabuWMiHFavS",
+    "center": [
+      39.07626488306772,
+      -105.5457366
+    ],
+    "zoom": 7,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=14HesK3z8RV04nJweRGsHcabuWMiHFavS",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "CT",
+    "name": "Connecticut",
+    "region": "state",
+    "type": "viewer",
+    "mid": "19L5U02SGeNOjhAyUIfgs10QR8UQFSATC",
+    "center": [
+      41.5667405037852,
+      -72.00824344818399
+    ],
+    "zoom": 8,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=19L5U02SGeNOjhAyUIfgs10QR8UQFSATC",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "DC",
+    "name": "Washington D.C.",
+    "region": "state",
+    "type": "viewer",
+    "mid": "196tWaJ70xMNg9g4l4THZfzz2_GF3uUY",
+    "center": [
+      38.9544336508342,
+      -76.9056003420493
+    ],
+    "zoom": 12,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=196tWaJ70xMNg9g4l4THZfzz2_GF3uUY",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "DE",
+    "name": "Delaware",
+    "region": "state",
+    "type": "edit",
+    "mid": "19-5Rzaij_9TC6iZmwq1OUUoQZgU3YM4q",
+    "center": [
+      39.135294724183765,
+      -75.40076015000002
+    ],
+    "zoom": 9,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=19-5Rzaij_9TC6iZmwq1OUUoQZgU3YM4q",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "FL",
+    "name": "Florida",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1YXuq7XDgS1jFKf5Sxfg_-8kOVwSTCwNt",
+    "center": [
+      26.077437884959316,
+      -80.24476208509594
+    ],
+    "zoom": 15,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1YXuq7XDgS1jFKf5Sxfg_-8kOVwSTCwNt",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "GA",
+    "name": "Georgia",
+    "region": "state",
+    "type": "edit",
+    "mid": "1X-RPnvl4_wbKGIWavWYmTJWW1r0zGIAN",
+    "center": [
+      31.125231945032674,
+      -81.54174760901293
+    ],
+    "zoom": 14,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1X-RPnvl4_wbKGIWavWYmTJWW1r0zGIAN",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "GU",
+    "name": "Guam & NMI",
+    "region": "territory",
+    "type": "edit",
+    "mid": "1CglpThqsCMRlK1EO_b0Xapnxic_cktM",
+    "center": null,
+    "zoom": null,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1CglpThqsCMRlK1EO_b0Xapnxic_cktM",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "HI",
+    "name": "Hawaii",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1AjNXXZ7ZhrZs23ZRMCTv3emC-T7W77Y",
+    "center": [
+      20.651482776606514,
+      -157.521345
+    ],
+    "zoom": 8,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1AjNXXZ7ZhrZs23ZRMCTv3emC-T7W77Y",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "IA",
+    "name": "Iowa",
+    "region": "state",
+    "type": "edit",
+    "mid": "1tfDIf7L29-K-rK4aItFG5T-1jyKPI3iD",
+    "center": null,
+    "zoom": null,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1tfDIf7L29-K-rK4aItFG5T-1jyKPI3iD",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "ID",
+    "name": "Idaho",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1qoW_Mckzw5M5u_U650kaBkdmyPMiPfUr",
+    "center": [
+      45.170579751094216,
+      -114.07635065000001
+    ],
+    "zoom": 7,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1qoW_Mckzw5M5u_U650kaBkdmyPMiPfUr",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "IL",
+    "name": "Illinois",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1cAnRm5eXra1qX3Z_OD8ydfTu3GyzUe0o",
+    "center": [
+      40.31390540396715,
+      -89.48410419368781
+    ],
+    "zoom": 8,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1cAnRm5eXra1qX3Z_OD8ydfTu3GyzUe0o",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "IN",
+    "name": "Indiana",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1sWSFPQhxDBHfPhGzobwAqKfvDdA",
+    "center": [
+      41.173229252981756,
+      -85.05339633789063
+    ],
+    "zoom": 11,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1sWSFPQhxDBHfPhGzobwAqKfvDdA",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "KS",
+    "name": "Kansas",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1qMGEhABxDyI-J-yyZnlmixW5QeUO__1r",
+    "center": [
+      38.39455414664504,
+      -98.11537255000002
+    ],
+    "zoom": 8,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1qMGEhABxDyI-J-yyZnlmixW5QeUO__1r",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "KY",
+    "name": "Kentucky",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1vwEZVW9AMJqG3APwVlsg11TcMPI",
+    "center": [
+      37.63735136912671,
+      -84.52624193266657
+    ],
+    "zoom": 8,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1vwEZVW9AMJqG3APwVlsg11TcMPI",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "LA",
+    "name": "Louisiana",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1pAkFMk3CHzOGgLVNJJwq_UP5m8TJeVQ",
+    "center": [
+      31.094300416189277,
+      -91.21135584699525
+    ],
+    "zoom": 8,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1pAkFMk3CHzOGgLVNJJwq_UP5m8TJeVQ",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "MA",
+    "name": "Massachusetts",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1vIeQw_iKtIfhmJgngun6JY1VFfZYdGg",
+    "center": [
+      42.159544702574856,
+      -71.69271324999998
+    ],
+    "zoom": 9,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1vIeQw_iKtIfhmJgngun6JY1VFfZYdGg",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "MD",
+    "name": "Maryland",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1nVX_PbSrcz2CKzxb07tiIKiX5YRS2pY",
+    "center": [
+      38.82351859278175,
+      -77.2679815
+    ],
+    "zoom": 9,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1nVX_PbSrcz2CKzxb07tiIKiX5YRS2pY",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "ME",
+    "name": "Maine",
+    "region": "state",
+    "type": "edit",
+    "mid": "1GNUO4uOTcN4zuTGh9EmahYl4vLwt-qQ",
+    "center": null,
+    "zoom": null,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1GNUO4uOTcN4zuTGh9EmahYl4vLwt-qQ",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "MI",
+    "name": "Michigan",
+    "region": "state",
+    "type": "edit",
+    "mid": "1nh4ioG8w_2KivcMNHwlK7Lw4_Qs",
+    "center": null,
+    "zoom": null,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1nh4ioG8w_2KivcMNHwlK7Lw4_Qs",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "MN",
+    "name": "Minnesota",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1KFxzKHKD397kgHNMI6CEx0C1bkJ8eAc",
+    "center": [
+      46.29136270364174,
+      -92.57695670574003
+    ],
+    "zoom": 7,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1KFxzKHKD397kgHNMI6CEx0C1bkJ8eAc",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "MO",
+    "name": "Missouri",
+    "region": "state",
+    "type": "edit",
+    "mid": "1bFXLVuT2NVO8tphJ9NCPmXwYm95xxoJY",
+    "center": [
+      38.67241411044452,
+      -93.51937081941882
+    ],
+    "zoom": 7,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1bFXLVuT2NVO8tphJ9NCPmXwYm95xxoJY",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "MS",
+    "name": "Mississippi",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1aXNw8Owxi3tnXPbZJZD7jDrBNTXUWhBv",
+    "center": [
+      32.667193211245085,
+      -89.79930405000002
+    ],
+    "zoom": 7,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1aXNw8Owxi3tnXPbZJZD7jDrBNTXUWhBv",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "MT",
+    "name": "Montana",
+    "region": "state",
+    "type": "viewer",
+    "mid": "16PwvwMcIrLVErlRHtqEWapkr2pl2Dh9T",
+    "center": [
+      47.25591655739251,
+      -108.44264377175801
+    ],
+    "zoom": 6,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=16PwvwMcIrLVErlRHtqEWapkr2pl2Dh9T",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "NC",
+    "name": "North Carolina",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1bGAoRvFRGhYgOHgKztr4vZJLnepVbt8I",
+    "center": [
+      35.3317243657794,
+      -77.98863585970095
+    ],
+    "zoom": 8,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1bGAoRvFRGhYgOHgKztr4vZJLnepVbt8I",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "ND",
+    "name": "North Dakota",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1aX6s061V6gM5Vh9Wtj1nyeQT_APWDCY",
+    "center": [
+      46.54774482359458,
+      -102.40033303100287
+    ],
+    "zoom": 9,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1aX6s061V6gM5Vh9Wtj1nyeQT_APWDCY",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "NE",
+    "name": "Nebraska",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1MNH2Yn-y_L6LTdofgbTvfvckngY",
+    "center": [
+      41.52520323572918,
+      -99.98934928204942
+    ],
+    "zoom": 7,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1MNH2Yn-y_L6LTdofgbTvfvckngY",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "NH",
+    "name": "New Hampshire",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1v_0Hnl96pcreQJZJN3j_AAKNAg_lB0w",
+    "center": [
+      43.7181428444632,
+      -70.83109040022198
+    ],
+    "zoom": 8,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1v_0Hnl96pcreQJZJN3j_AAKNAg_lB0w",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "NJ",
+    "name": "New Jersey",
+    "region": "state",
+    "type": "viewer",
+    "mid": "15nIvj9RDkJ8CZhuONjpIs0ivu3MIZ1Dv",
+    "center": [
+      40.34274335220609,
+      -75.41856686256244
+    ],
+    "zoom": 7,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=15nIvj9RDkJ8CZhuONjpIs0ivu3MIZ1Dv",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "NM",
+    "name": "New Mexico",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1Ndah1mM7sdcc5D0zjWT8eupH_qU4i8g",
+    "center": [
+      34.48204479248057,
+      -106.03876559999999
+    ],
+    "zoom": 7,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1Ndah1mM7sdcc5D0zjWT8eupH_qU4i8g",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "NV",
+    "name": "Nevada",
+    "region": "state",
+    "type": "edit",
+    "mid": "1zWNdF1TGMlSTItegPRYzalK1b5oLzS40",
+    "center": null,
+    "zoom": null,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1zWNdF1TGMlSTItegPRYzalK1b5oLzS40",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "NY",
+    "name": "New York",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1F9-fuXshpLpqMamjCJ-uUmzeBKRe13Y",
+    "center": [
+      42.82488572210141,
+      -75.83430705
+    ],
+    "zoom": 8,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1F9-fuXshpLpqMamjCJ-uUmzeBKRe13Y",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "OH",
+    "name": "Ohio",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1TNC841I-LeUgSnJUniOfvX6IG4ApF_Kk",
+    "center": [
+      40.300603168434876,
+      -81.84385665386048
+    ],
+    "zoom": 7,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1TNC841I-LeUgSnJUniOfvX6IG4ApF_Kk",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "OK",
+    "name": "Oklahoma",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1blVKllJ5VqBqDEgmY0Gqw3wuthLBWZUq",
+    "center": [
+      35.069918381073975,
+      -94.06590417185978
+    ],
+    "zoom": 7,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1blVKllJ5VqBqDEgmY0Gqw3wuthLBWZUq",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "OR",
+    "name": "Oregon",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1me9SHPjlOBaAwGn8DOh_v1dYu6GJHFwr",
+    "center": [
+      45.64924269996595,
+      -123.17783267472593
+    ],
+    "zoom": 9,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1me9SHPjlOBaAwGn8DOh_v1dYu6GJHFwr",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "PA",
+    "name": "Pennsylvania",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1c72AkWqLoNNWwr1Ay8TFO3r3-AoyVHs",
+    "center": [
+      40.97784420783054,
+      -77.60573
+    ],
+    "zoom": 8,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1c72AkWqLoNNWwr1Ay8TFO3r3-AoyVHs",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "PR",
+    "name": "Puerto Rico (Tsunami)",
+    "region": "territory",
+    "type": "edit",
+    "mid": "1OKrqTi8bWUhZfoy9ted8CTyDsB5IoRk",
+    "center": null,
+    "zoom": null,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1OKrqTi8bWUhZfoy9ted8CTyDsB5IoRk",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "RI",
+    "name": "Rhode Island",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1VshbgL5mL5i-b8qIQamJhpc-5jQFEpw",
+    "center": [
+      41.66754163247584,
+      -71.5384429
+    ],
+    "zoom": 10,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1VshbgL5mL5i-b8qIQamJhpc-5jQFEpw",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "SC",
+    "name": "South Carolina",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1lHwjRMjiwYsrSpaNq8fVKy8Myjl0ck6I",
+    "center": [
+      33.78678834767674,
+      -81.0752425
+    ],
+    "zoom": 8,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1lHwjRMjiwYsrSpaNq8fVKy8Myjl0ck6I",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "SD",
+    "name": "South Dakota",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1TLP3ulH7A2NuLFAKxPOmXRAZxZDnXiqB",
+    "center": [
+      45.0565831989145,
+      -100.00787015714539
+    ],
+    "zoom": 7,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1TLP3ulH7A2NuLFAKxPOmXRAZxZDnXiqB",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "TN",
+    "name": "Tennessee",
+    "region": "state",
+    "type": "viewer",
+    "mid": "13NQOQQHAnATxpnb4cK5-UsHli3HV8gEb",
+    "center": [
+      35.7781001863382,
+      -85.46359141602586
+    ],
+    "zoom": 8,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=13NQOQQHAnATxpnb4cK5-UsHli3HV8gEb",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "TX",
+    "name": "Texas",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1fRAxrc0b1Wng0PRe3d9x9mzQD6s",
+    "center": [
+      33.002300864167566,
+      -98.58135915265285
+    ],
+    "zoom": 7,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1fRAxrc0b1Wng0PRe3d9x9mzQD6s",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "UT",
+    "name": "Utah",
+    "region": "state",
+    "type": "edit",
+    "mid": "1qIM6Lqo3CS-Q2ThA87sObdFRTxse459r",
+    "center": null,
+    "zoom": null,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1qIM6Lqo3CS-Q2ThA87sObdFRTxse459r",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "VA",
+    "name": "Virginia",
+    "region": "state",
+    "type": "embed",
+    "mid": "1OxlfdkfgRdTaj0AkioqU4jOxK2U3QFu6",
+    "center": null,
+    "zoom": null,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1OxlfdkfgRdTaj0AkioqU4jOxK2U3QFu6",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "VI",
+    "name": "U.S. Virgin Islands & BVI",
+    "region": "territory",
+    "type": "edit",
+    "mid": "1koS9nUQxCZR138wAujl8c8BOW5ywOH8",
+    "center": null,
+    "zoom": null,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1koS9nUQxCZR138wAujl8c8BOW5ywOH8",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "VT",
+    "name": "Vermont",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1nV5_uNTIU7Ns7otSTqGcCkIAcSPXN2w",
+    "center": [
+      43.914324531207455,
+      -71.59404944636339
+    ],
+    "zoom": 8,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1nV5_uNTIU7Ns7otSTqGcCkIAcSPXN2w",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "WA",
+    "name": "Washington",
+    "region": "state",
+    "type": "edit",
+    "mid": "1bSGdtyDnPCQ8A81RIdEpktujfS8FG5da",
+    "center": [
+      46.37303938162714,
+      -120.80656762187499
+    ],
+    "zoom": 7,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1bSGdtyDnPCQ8A81RIdEpktujfS8FG5da",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "WI",
+    "name": "Wisconsin",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1bzPJctgvfRq-RR00sIeyg-EWtH_Y81NH",
+    "center": [
+      44.86431377127867,
+      -90.21264093913544
+    ],
+    "zoom": 6,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1bzPJctgvfRq-RR00sIeyg-EWtH_Y81NH",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "WV",
+    "name": "West Virginia",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1QTKhyROx-t5pouvAftigo-uDGiIc0udi",
+    "center": [
+      39.16455446640542,
+      -80.76885555738306
+    ],
+    "zoom": 7,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1QTKhyROx-t5pouvAftigo-uDGiIc0udi",
+    "source": "mymaps-pagedata"
+  },
+  {
+    "abbr": "WY",
+    "name": "Wyoming",
+    "region": "state",
+    "type": "viewer",
+    "mid": "1Y1HJQgSl3Uh_MsRIJ_Krp5V4ce3BjIo",
+    "center": [
+      43.033770641646235,
+      -107.54622870000001
+    ],
+    "zoom": 8,
+    "mapUrl": "https://www.google.com/maps/d/viewer?mid=1Y1HJQgSl3Uh_MsRIJ_Krp5V4ce3BjIo",
+    "source": "mymaps-pagedata"
+  }
+]

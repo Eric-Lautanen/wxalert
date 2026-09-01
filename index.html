@@ -1,0 +1,2164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>WXALERT · SIREN NET</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0D0F; --panel:rgba(13,17,20,.92);
+  --hdrH:58px;
+  --line:#232C33; --line2:#39454E;
+  --txt:#E9EEF1; --dim:#93A4AC; --faint:#5C6C75;
+  --red:#FF4B3E; --amber:#FFA23E; --gold:#F2C744; --green:#3FC46A; --teal:#5FB8B0;
+  --mono:'IBM Plex Mono',monospace; --cond:'Barlow Condensed',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--txt);font:13px/1.45 var(--mono);overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:#2A343B;border-radius:0}
+::-webkit-scrollbar-track{background:transparent}
+svg.ic{width:15px;height:15px;flex:none}
+
+/* ---------- MAP ---------- */
+#map{position:fixed;inset:0;background:#0A0D0F;z-index:0}
+/* CSS night trick: filter ONLY the basemap tile pane — polygons/markers/radar keep true colors */
+.leaflet-tile-pane{
+  filter:invert(1) hue-rotate(180deg) brightness(1.02) contrast(.9) saturate(.55) grayscale(.25);
+}
+#map::after{content:'';position:absolute;inset:0;z-index:350;pointer-events:none;
+  background:radial-gradient(ellipse at center, transparent 52%, rgba(4,6,8,.55) 100%)}
+#map.pick, #map.pick *{cursor:crosshair!important}
+
+.leaflet-control-attribution{background:rgba(10,13,15,.75)!important;color:var(--faint)!important;font:9px var(--mono)!important}
+.leaflet-control-attribution a{color:var(--dim)!important}
+.leaflet-bar a{background:#10161A!important;color:#C7D2D8!important;border-color:var(--line)!important}
+.leaflet-bar a:hover{background:#182028!important}
+.leaflet-control-scale-line{background:rgba(10,13,15,.7)!important;color:var(--dim)!important;border-color:var(--line2)!important;font:9px var(--mono)!important}
+.poly-tip{background:#10161A!important;border:1px solid var(--line2)!important;color:var(--txt)!important;
+  font:10px var(--mono)!important;letter-spacing:.06em;border-radius:0!important;box-shadow:none!important;padding:3px 7px!important}
+
+path.apoly{fill-rule:evenodd}
+path.apoly:hover{stroke-width:2.4px}
+path.apoly.selected{stroke-width:3.2px!important;fill-opacity:.24!important}
+path.apoly.ants{stroke-dasharray:10 6;animation:march 1s linear infinite}
+path.apoly.poly-test{stroke-dasharray:4 4}
+@keyframes march{to{stroke-dashoffset:-16}}
+
+/* siren markers are painted on ONE canvas (SirenCanvas layer) — no DOM node per
+   site, so 5k+ sirens render in a couple of milliseconds. Only the watch point
+   keeps a real DOM marker. */
+canvas.siren-cv{position:absolute;pointer-events:none}
+/* watch-point label only when zoomed in (decluttered) */
+.wp .wp-lbl{display:none}
+#map.z10 .wp .wp-lbl{display:block}
+
+/* ---------- SIREN HOVER TIP ---------- */
+#sirenTip{position:fixed;left:0;top:0;z-index:1550;pointer-events:none;min-width:158px;max-width:268px;
+  padding:9px 12px 10px;background:var(--panel);backdrop-filter:blur(10px);border:1px solid var(--line2);
+  clip-path:polygon(0 0,calc(100% - 11px) 0,100% 11px,100% 100%,0 100%);
+  opacity:0;transform:translateY(5px) scale(.98);transform-origin:top left;
+  transition:opacity .11s ease,transform .11s ease;visibility:hidden}
+#sirenTip.in{opacity:1;transform:translateY(0) scale(1);visibility:visible}
+.st-top{display:flex;align-items:center;gap:8px}
+.st-lamp{width:7px;height:7px;flex:none;transform:rotate(45deg);background:#3A444C}
+#sirenTip.st-watch .st-lamp{background:var(--gold);box-shadow:0 0 5px var(--gold)}
+#sirenTip.st-alert .st-lamp{background:var(--red);box-shadow:0 0 7px var(--red);animation:lampBlink .85s steps(1) infinite}
+.st-name{font:600 16px var(--cond);letter-spacing:.05em;color:var(--txt);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st-id{margin-left:auto;flex:none;font:500 8.5px var(--mono);letter-spacing:.09em;color:var(--faint);
+  border:1px solid var(--line);padding:1px 5px}
+.st-rule{height:1px;background:var(--line);margin:7px -12px 7px}
+.st-geo{display:flex;align-items:baseline;gap:6px;font:500 9.5px var(--mono);letter-spacing:.05em;color:var(--dim)}
+.st-geo em{font:500 8px var(--mono);letter-spacing:.14em;color:var(--faint);font-style:normal;flex:none}
+.st-geo span{color:var(--txt);font-weight:600}
+.st-sub{margin-top:4px;font:500 8.5px var(--mono);letter-spacing:.1em;color:var(--faint);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sirenTip.st-watch .st-sub{color:var(--gold)}
+#sirenTip.st-alert .st-sub{color:var(--red)}
+
+/* watch point marker */
+.wp{position:absolute;left:0;top:0;width:0;height:0}
+.wp .wp-dot{position:absolute;left:0;top:0;width:12px;height:12px;transform:translate(-50%,-50%) rotate(45deg);
+  background:rgba(95,184,176,.22);border:2px solid var(--teal)}
+.wp .wp-ring{position:absolute;left:0;top:0;width:12px;height:12px;transform:translate(-50%,-50%) rotate(45deg);
+  border:1.5px solid var(--teal);opacity:0;animation:ringT 2.4s ease-out infinite}
+@keyframes ringT{0%{transform:translate(-50%,-50%) rotate(45deg) scale(.8);opacity:.8}
+  100%{transform:translate(-50%,-50%) rotate(45deg) scale(3.8);opacity:0}}
+.wp .wp-lbl{position:absolute;left:12px;top:-16px;font:600 9.5px var(--mono);color:var(--teal);letter-spacing:.06em;
+  background:rgba(10,13,15,.78);padding:1px 5px;border:1px solid rgba(95,184,176,.4);white-space:nowrap}
+
+/* ---------- HEADER ---------- */
+#topbar{position:fixed;inset:0 0 auto 0;height:var(--hdrH);z-index:1100;display:flex;align-items:center;gap:12px;
+  padding:0 max(16px,env(safe-area-inset-right)) 0 max(16px,env(safe-area-inset-left));background:var(--panel);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;flex:none}
+.brand-ic svg{width:22px;height:22px;color:var(--red);display:block}
+.brand-name{font:700 21px var(--cond);letter-spacing:.2em;line-height:1}
+.brand-sub{font:500 8.5px var(--mono);letter-spacing:.14em;color:var(--faint);margin-top:3px}
+.hdr-div{width:1px;height:26px;background:var(--line);flex:none}
+
+/* search */
+#searchBox{position:relative;display:flex;align-items:center;gap:8px;flex:1;min-width:120px;max-width:380px;
+  height:36px;padding:0 10px;border:1px solid var(--line);background:rgba(255,255,255,.03)}
+#searchBox svg.mag{width:14px;height:14px;color:var(--faint);flex:none}
+#q{flex:1;min-width:30px;background:none;border:none;outline:none;color:var(--txt);font:500 12px var(--mono);letter-spacing:.04em}
+#q::placeholder{color:var(--faint);letter-spacing:.08em}
+#qClear{color:var(--faint);font-size:12px;padding:0 2px;flex:none}
+#qClear:hover{color:var(--txt)}
+#qRes{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--panel);border:1px solid var(--line2);
+  backdrop-filter:blur(10px);z-index:1300;max-height:300px;overflow-y:auto}
+.qr{display:block;width:100%;text-align:left;padding:9px 12px;border-bottom:1px solid rgba(35,44,51,.6);color:var(--dim)}
+.qr:hover{background:rgba(255,255,255,.05);color:var(--txt)}
+.qr b{display:block;font:600 12.5px var(--mono);color:var(--txt);letter-spacing:.03em}
+.qr span{font:400 9.5px var(--mono);color:var(--faint);display:block;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qr .tag{float:right;font:500 8px var(--mono);border:1px solid var(--line);padding:1px 4px;color:var(--faint);letter-spacing:.08em;margin-left:8px}
+.q-empty{padding:12px;color:var(--faint);font:500 10px var(--mono);letter-spacing:.1em;text-align:center}
+
+.lstatus{display:flex;align-items:center;gap:7px;font:500 10px var(--mono);letter-spacing:.1em;color:var(--dim);flex:none}
+#liveDot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+#liveDot.ok{background:var(--green);animation:blip 2s infinite}
+#liveDot.sync{background:var(--gold)}
+#liveDot.err{background:var(--red)}
+@keyframes blip{50%{opacity:.45}}
+.stbox{display:flex;align-items:center;gap:7px;font:500 10px var(--mono);letter-spacing:.1em;color:var(--dim);flex:none}
+#stateInput{width:34px;background:rgba(255,255,255,.03);border:1px solid var(--line);color:var(--txt);
+  font:600 12px var(--mono);text-align:center;padding:5px 0;letter-spacing:.1em;text-transform:uppercase;outline:none}
+#stateInput:focus{border-color:var(--line2)}
+.spacer{flex:none;width:4px}
+.clockbox{text-align:right;flex:none}
+#clock{font:600 18px var(--mono);letter-spacing:.06em}
+#clockSub{font:500 9px var(--mono);color:var(--faint);letter-spacing:.12em}
+.hbtn{display:flex;align-items:center;gap:7px;height:34px;padding:0 11px;border:1px solid var(--line);
+  background:rgba(255,255,255,.02);font:500 10.5px var(--mono);letter-spacing:.08em;color:var(--dim);flex:none}
+.hbtn:hover{color:var(--txt);border-color:var(--line2);background:rgba(255,255,255,.05)}
+.hbtn.on{color:var(--green);border-color:rgba(63,196,106,.45)}
+.hbtn.testing{color:var(--amber);border-color:rgba(255,162,62,.5)}
+.hbtn.spin svg{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.mob{display:none}
+
+/* ---------- PANELS ---------- */
+.panel{position:fixed;z-index:900;background:var(--panel);backdrop-filter:blur(10px);border:1px solid var(--line);
+  display:flex;flex-direction:column;transition:transform .3s ease;
+  clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%)}
+#sirenPanel{left:14px;top:calc(var(--hdrH) + 14px);bottom:52px;width:298px}
+#alertPanel{right:14px;top:calc(var(--hdrH) + 14px);bottom:52px;width:358px}
+.panel.off{pointer-events:none}
+#sirenPanel.off{transform:translateX(calc(-100% - 24px))}
+#alertPanel.off{transform:translateX(calc(100% + 24px))}
+.p-head{display:flex;align-items:baseline;gap:9px;padding:12px 14px 10px;border-bottom:1px solid var(--line);flex:none}
+.p-tick{width:10px;height:3px;background:var(--red);align-self:center;flex:none}
+.p-head h2{font:600 15px var(--cond);letter-spacing:.16em}
+.p-sub{margin-left:auto;font:500 9px var(--mono);letter-spacing:.08em;color:var(--faint)}
+.p-scroll{overflow-y:auto;flex:1;min-height:0}
+.p-foot{flex:none;padding:8px 14px;border-top:1px solid var(--line);font:500 8.5px var(--mono);
+  letter-spacing:.1em;color:var(--faint)}
+
+/* watch strip */
+#watchStrip{display:flex;align-items:center;gap:9px;padding:8px 14px;border-bottom:1px solid var(--line);
+  background:rgba(95,184,176,.06);flex:none}
+#watchStrip>svg{width:13px;height:13px;color:var(--teal);flex:none}
+#wsTxt{flex:1;min-width:0;font:500 10px var(--mono);letter-spacing:.06em;color:var(--teal);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#wsTxt b{color:var(--txt)}
+#wsTxt b.hot{color:var(--red)}
+#wsClear{color:var(--faint);font-size:12px;flex:none}
+#wsClear:hover{color:var(--red)}
+
+/* siren rows */
+.siren-row{display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:10px 12px 10px 14px;
+  border-bottom:1px solid rgba(35,44,51,.6)}
+.siren-row:hover{background:rgba(255,255,255,.035)}
+.lamp{width:8px;height:8px;flex:none;background:#3A444C;transform:rotate(45deg)}
+.siren-row.st-watch .lamp{background:var(--gold)}
+.siren-row.st-alert .lamp{animation:lampBlink .85s steps(1) infinite}
+@keyframes lampBlink{0%,49%{background:var(--red);box-shadow:0 0 6px var(--red)}50%,100%{background:#4A1512;box-shadow:none}}
+.sr-body{min-width:0;flex:1}
+.sr-top{display:flex;align-items:center;gap:8px}
+.sr-name{font:600 15px var(--cond);letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sr-no{margin-left:auto;font:500 8.5px var(--mono);color:var(--faint);border:1px solid var(--line);padding:1px 5px;letter-spacing:.08em;flex:none}
+.sr-sub{font:500 9.5px var(--mono);letter-spacing:.06em;color:var(--faint);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.siren-row.st-watch .sr-sub{color:var(--gold)}
+.siren-row.st-alert .sr-sub{color:var(--red)}
+/* virtualised list footer — rows are appended in chunks as you scroll */
+.s-foot{flex:none;padding:6px 14px;border-top:1px solid var(--line);font:500 8.5px var(--mono);
+  letter-spacing:.1em;color:var(--faint);text-align:center}
+.s-foot.hidden{display:none}
+.log-wrap{flex:none;border-top:1px solid var(--line)}
+.log-head{padding:8px 14px 4px;font:600 10px var(--cond);letter-spacing:.2em;color:var(--faint)}
+#logList{height:128px;overflow-y:auto;padding:0 14px 10px}
+.log-row{font:400 9.5px var(--mono);color:var(--dim);padding:2.5px 0;letter-spacing:.03em}
+.log-row span{color:var(--faint);margin-right:8px}
+.log-row.err{color:var(--red)}
+.log-row.warn{color:var(--amber)}
+.log-row.ok{color:var(--green)}
+
+/* feed */
+.feed-bar{display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid var(--line);flex:none}
+.chip{font:500 9.5px var(--mono);letter-spacing:.08em;color:var(--dim);border:1px solid var(--line);padding:4px 9px}
+.chip:hover{color:var(--txt)}
+.chip.active{color:var(--txt);border-color:var(--line2);background:rgba(255,255,255,.05)}
+.count{margin-left:auto;font:600 11px var(--mono);color:var(--dim);letter-spacing:.08em}
+.alert-card{position:relative;padding:10px 12px 11px 16px;border-bottom:1px solid rgba(35,44,51,.6);cursor:pointer}
+.alert-card:hover{background:rgba(255,255,255,.03)}
+.alert-card.selected{background:rgba(255,255,255,.045);box-shadow:inset 0 0 0 1px var(--line2)}
+.spine{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--c)}
+.ac-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.ac-ev{font:700 17px var(--cond);letter-spacing:.06em;color:var(--c);text-transform:uppercase}
+.ac-new{font:600 8.5px var(--mono);color:var(--red);letter-spacing:.14em;animation:blip 1.2s infinite}
+.ac-tag{font:600 8.5px var(--mono);letter-spacing:.1em;color:var(--c);border:1px solid var(--c);padding:1px 5px;opacity:.9}
+.ac-dist{font:600 8.5px var(--mono);letter-spacing:.08em;color:var(--txt);border:1px solid var(--line2);padding:1px 5px;margin-left:auto}
+.ac-dist.over{color:var(--teal);border-color:var(--teal)}
+.ac-meta{font:500 9.5px var(--mono);letter-spacing:.08em;color:var(--faint);margin-top:3px}
+.ac-meta .js-ends.ending{color:var(--red)}
+.ac-area{font:400 10px var(--mono);color:var(--dim);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ac-body{display:none;font:400 11px var(--mono);color:var(--dim);white-space:pre-line;margin-top:9px;
+  border-top:1px solid var(--line);padding-top:9px}
+.alert-card.expanded .ac-body{display:block}
+.quiet{padding:44px 20px;text-align:center;color:var(--faint)}
+.quiet svg{width:26px;height:26px;color:#3A444C}
+.q-t{font:700 19px var(--cond);letter-spacing:.24em;color:var(--green);margin-top:10px}
+.q-s{font:500 9.5px var(--mono);letter-spacing:.1em;margin-top:5px}
+
+/* ---------- BANNER ---------- */
+#banner{position:fixed;top:calc(var(--hdrH) + 12px);left:50%;transform:translateX(-50%);z-index:1200;display:flex;align-items:center;gap:14px;
+  padding:10px 16px;background:rgba(40,12,10,.95);border:1px solid var(--red);max-width:min(760px,92vw);
+  clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%)}
+#banner.hidden{display:none}
+#banner .b-ic svg{width:24px;height:24px;color:var(--red);display:block}
+.b-tx b{display:block;font:700 20px var(--cond);letter-spacing:.14em;color:var(--red);line-height:1.1}
+.b-tx span{font:500 9.5px var(--mono);letter-spacing:.08em;color:#F0B9B4}
+#banner.testb{border-color:var(--amber);background:rgba(42,28,8,.95)}
+#banner.testb .b-ic svg,#banner.testb .b-tx b{color:var(--amber)}
+#banner.testb .b-tx span{color:#F2D6A8}
+#banner.live{animation:bStrobe 1s steps(1) infinite}
+@keyframes bStrobe{0%,44%{background:rgba(70,15,11,.97)}50%,100%{background:rgba(34,11,9,.95)}}
+#banner.testb.live{animation-name:bStrobeT}
+@keyframes bStrobeT{0%,44%{background:rgba(66,44,10,.97)}50%,100%{background:rgba(36,25,8,.95)}}
+#banner.acked{animation:none}
+.b-btn{font:600 10px var(--mono);letter-spacing:.12em;padding:7px 13px;border:1px solid rgba(255,255,255,.28);color:var(--txt)}
+.b-btn:hover{background:rgba(255,255,255,.1)}
+.b-btn.warn{border-color:var(--red);color:var(--red)}
+.b-btn.warn:hover{background:rgba(255,75,62,.14)}
+
+/* ---------- RADAR CLUSTER ---------- */
+#radarCtl{position:fixed;right:14px;bottom:calc(80px + env(safe-area-inset-bottom));z-index:950;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.rrow{display:flex;gap:6px;align-items:stretch}
+.rbtn{height:34px;display:flex;align-items:center;gap:6px;padding:0 10px;background:var(--panel);
+  border:1px solid var(--line);color:var(--dim);font:500 10px var(--mono);letter-spacing:.1em}
+.rbtn:hover{color:var(--txt);border-color:var(--line2)}
+.rbtn.on{color:var(--teal);border-color:rgba(95,184,176,.5)}
+.rbtn:disabled{opacity:.5;cursor:default}
+#btnPlay{width:34px;justify-content:center}
+#btnPlay svg{width:11px;height:11px}
+#radarTime{min-width:56px;justify-content:center;font:600 10.5px var(--mono);letter-spacing:.06em;color:var(--txt);cursor:pointer}
+#refl{display:flex;align-items:center;gap:5px;padding:4px 8px;background:var(--panel);border:1px solid var(--line)}
+#refl i{width:84px;height:6px;display:block;
+  background:linear-gradient(90deg,#1E7A32,#7FBF3F 30%,#F2C744 50%,#FF8C3A 70%,#FF4B3E 88%,#C62828)}
+#refl em{font:500 7.5px var(--mono);color:var(--faint);font-style:normal;letter-spacing:.05em}
+
+/* ---------- LEGEND / TOASTS ---------- */
+#legend{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:800;display:flex;align-items:center;gap:14px;
+  padding:7px 14px;background:var(--panel);border:1px solid var(--line);font:500 9px var(--mono);
+  letter-spacing:.08em;color:var(--dim);max-width:92vw;overflow:hidden;white-space:nowrap}
+#legend.hidden{display:none}
+.lg-net{flex:none}
+.lg-net b{color:var(--red)}
+.lg-net.ok{color:var(--green)}
+.lg-i{display:inline-flex;align-items:center;gap:6px}
+.lg-i i{width:9px;height:9px;flex:none;display:inline-block}
+#locateBtn{position:fixed;right:56px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:950;width:34px;height:34px;display:flex;align-items:center;
+  justify-content:center;background:var(--panel);border:1px solid var(--line);color:var(--dim)}
+#locateBtn:hover{color:var(--txt);border-color:var(--line2)}
+#toasts{position:fixed;bottom:58px;left:50%;transform:translateX(-50%);z-index:1700;display:flex;flex-direction:column;
+  gap:8px;align-items:center;pointer-events:none}
+.toast{display:flex;align-items:center;gap:10px;padding:9px 16px;background:var(--panel);border:1px solid var(--line);
+  font:500 10.5px var(--mono);letter-spacing:.06em;color:var(--txt);opacity:0;transform:translateY(8px);
+  transition:opacity .25s,transform .25s;max-width:80vw}
+.toast.in{opacity:1;transform:translateY(0)}
+.toast .tk{width:8px;height:8px;flex:none;transform:rotate(45deg);background:var(--dim)}
+.toast.warn .tk{background:var(--red)}
+.toast.ok .tk{background:var(--green)}
+
+/* ---------- SITE MANAGER ---------- */
+#modalWrap{position:fixed;inset:0;z-index:1600;background:rgba(4,6,8,.6);backdrop-filter:blur(3px);
+  display:flex;align-items:center;justify-content:center;padding:20px}
+#modalWrap.hidden{display:none}
+#modal{width:min(560px,94vw);max-height:88vh;background:var(--panel);border:1px solid var(--line2);
+  display:flex;flex-direction:column;clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%)}
+.m-head{display:flex;align-items:baseline;gap:9px;padding:14px 16px 12px;border-bottom:1px solid var(--line)}
+.m-head h2{font:600 17px var(--cond);letter-spacing:.16em}
+.m-sub{margin-left:auto;font:500 9px var(--mono);letter-spacing:.1em;color:var(--faint)}
+.m-x{font:600 14px var(--mono);color:var(--faint);padding:2px 6px}
+.m-x:hover{color:var(--txt)}
+.m-body{overflow-y:auto;padding:6px 16px 12px;min-height:0}
+#siteRows:empty::after{content:'NO SITES — ADD ONE BELOW, PICK ON MAP, OR SCAN OSM';display:block;padding:18px 0;
+  font:500 9.5px var(--mono);letter-spacing:.1em;color:var(--faint);text-align:center}
+.site-row{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid rgba(35,44,51,.6)}
+.s-info{flex:1;min-width:0}
+.s-name{font:600 14px var(--cond);letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-name .s-id{font:500 8.5px var(--mono);color:var(--faint);border:1px solid var(--line);padding:0 4px;margin-left:6px;letter-spacing:.08em}
+.s-geo{font:400 9.5px var(--mono);color:var(--faint);letter-spacing:.04em;margin-top:1px}
+.s-del{width:24px;height:24px;flex:none;border:1px solid var(--line);color:var(--faint);font:600 11px var(--mono)}
+.s-del:hover{color:var(--red);border-color:var(--red)}
+.s-edit{flex:none;font:600 9px var(--mono);letter-spacing:.1em;color:var(--dim);border:1px solid var(--line);padding:5px 8px}
+.s-edit:hover{color:var(--txt);border-color:var(--line2)}
+.m-add{margin-top:12px;border:1px solid var(--line);padding:12px}
+.m-form{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.m-form label{display:flex;flex-direction:column;gap:4px;font:600 8.5px var(--mono);letter-spacing:.12em;color:var(--faint)}
+.m-form input{background:rgba(255,255,255,.03);border:1px solid var(--line);color:var(--txt);
+  font:500 11px var(--mono);padding:7px 9px;outline:none;letter-spacing:.03em}
+.m-form input:focus{border-color:var(--line2)}
+.m-actions{display:flex;gap:8px;margin-top:10px}
+.m-btn{font:600 10px var(--mono);letter-spacing:.12em;padding:8px 13px;border:1px solid var(--line2);color:var(--dim)}
+.m-btn:hover{color:var(--txt);background:rgba(255,255,255,.05)}
+.m-btn:disabled{opacity:.5;cursor:default}
+.m-btn.primary{color:var(--txt);border-color:var(--red)}
+.m-btn.primary:hover{background:rgba(255,75,62,.12)}
+.m-btn.active{color:var(--amber);border-color:var(--amber)}
+.m-hint{margin-top:10px;font:400 9px var(--mono);letter-spacing:.05em;color:var(--faint);line-height:1.6}
+.m-foot{display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--line);flex-wrap:wrap}
+.m-note{flex:1;min-width:140px;font:400 8.5px var(--mono);letter-spacing:.06em;color:var(--faint);line-height:1.5}
+
+#boot{position:fixed;inset:0;z-index:2000;background:var(--bg);display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:14px;transition:opacity .5s}
+#boot.gone{opacity:0;pointer-events:none}
+.b-mark svg{width:36px;height:36px;color:var(--red)}
+.b-name{font:700 34px var(--cond);letter-spacing:.34em;margin-left:.34em}
+.b-line{font:500 11px var(--mono);letter-spacing:.14em;color:var(--dim);display:flex;align-items:center}
+.cur{width:8px;height:14px;background:var(--dim);margin-left:7px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+#bootRetry{margin-top:8px;border:1px solid var(--line2);padding:9px 20px;font:600 11px var(--mono);letter-spacing:.12em}
+#bootRetry:hover{background:rgba(255,255,255,.05)}
+.hidden{display:none!important}
+
+@media (max-width:1080px){
+  #legend{display:none}
+  .mob{display:flex}
+  .lstatus,#clockSub{display:none}
+  .clockbox #clock{font-size:15px}
+}
+@media (max-width:900px){
+  .clockbox,.stbox{display:none}
+}
+@media (max-width:640px){
+  /* header wraps: brand + controls on top, search + panel toggles below */
+  #topbar{height:auto;min-height:var(--hdrH);flex-wrap:wrap;gap:8px 8px;padding:8px max(10px,env(safe-area-inset-right)) 8px max(10px,env(safe-area-inset-left))}
+  #searchBox{order:5;flex:1 1 auto;max-width:none;min-width:120px}
+  #btnL{order:6}
+  #btnR{order:7}
+  #syncT{display:none}
+  .hbtn .btxt{display:none}
+  .hbtn{height:32px;padding:0 8px}
+  .brand-name{font-size:18px}
+  .brand-sub{white-space:nowrap;max-width:44vw;overflow:hidden;text-overflow:ellipsis}
+  #sirenPanel,#alertPanel{width:min(86vw,320px);bottom:14px}
+  .m-form{grid-template-columns:1fr}
+}
+@media (max-width:400px){
+  .hbtn{padding:0 6px;gap:5px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<header id="topbar">
+  <div class="brand">
+    <span class="brand-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 22 20H2Z"/><path d="M12 9.5v4.5"/><path d="M12 16.8v.01"/></svg></span>
+    <div>
+      <div class="brand-name">WXALERT</div>
+      <div class="brand-sub" id="brandSub">SIREN NET</div>
+    </div>
+  </div>
+  <div id="searchBox">
+    <svg class="mag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" placeholder="CITY · ZIP · ADDRESS  ( / )" spellcheck="false" autocomplete="off">
+    <button id="qClear" class="hidden" title="Clear">✕</button>
+    <div id="qRes" class="hidden"></div>
+  </div>
+  <div class="lstatus"><span id="liveDot"></span><span id="liveTxt">BOOT</span></div>
+  <label class="stbox">FEED <input id="stateInput" value="FL" maxlength="2" spellcheck="false" list="stateOpts" autocomplete="off"></label>
+  <datalist id="stateOpts"></datalist>
+  <div class="spacer"></div>
+  <div class="clockbox"><div id="clock">--:--:--</div><div id="clockSub">—</div></div>
+  <button class="hbtn" id="btnSync" title="Force sync now">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-8-8c2.5 0 4.8 1.2 6.3 3"/><path d="M20 4v5h-5"/></svg>
+    <span id="syncT">T-60S</span>
+  </button>
+  <button class="hbtn" id="btnTiles" title="Cycle map tile theme">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg>
+    <span class="btxt" id="tileTxt">NIGHT</span>
+  </button>
+  <button class="hbtn" id="btnAudio" title="Arm / disarm siren audio">
+    <span id="audioIc"></span><span class="btxt">AUDIO</span>
+  </button>
+  <button class="hbtn" id="btnSites" title="Add / edit / remove siren sites · scan OSM">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+    <span class="btxt">SITES</span>
+  </button>
+  <button class="hbtn" id="btnTest" title="Run a local end-to-end siren test">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 19.1a10 10 0 0 1 0-14.2M19.1 4.9a10 10 0 0 1 0 14.2"/></svg>
+    <span class="btxt" id="testTxt">TEST</span>
+  </button>
+  <button class="hbtn mob" id="btnL" title="Toggle siren panel">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9 8 21M12 9l4 12M9.5 15h5"/><circle cx="12" cy="7" r="1.6"/><path d="M7.5 3.5a6.4 6.4 0 0 0 0 7M16.5 3.5a6.4 6.4 0 0 1 0 7"/></svg>
+  </button>
+  <button class="hbtn mob" id="btnR" title="Toggle feed panel">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+  </button>
+</header>
+
+<aside id="sirenPanel" class="panel">
+  <div class="p-head"><span class="p-tick"></span><h2>SIREN NET</h2><span class="p-sub" id="netSub"></span></div>
+  <div id="sirenList" class="p-scroll"></div>
+  <div id="sirenFoot" class="s-foot hidden"></div>
+  <div class="log-wrap">
+    <div class="log-head">EVENT LOG</div>
+    <div id="logList"></div>
+  </div>
+</aside>
+
+<aside id="alertPanel" class="panel">
+  <div class="p-head"><span class="p-tick"></span><h2>NWS FEED</h2><span class="p-sub" id="syncSub">—</span></div>
+  <div class="feed-bar">
+    <span class="chip active" id="chipAll">ALL</span>
+    <span class="chip" id="chipNet">NEAR NET</span>
+    <span class="count" id="alertCount">0</span>
+  </div>
+  <div id="watchStrip" class="hidden">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+    <span id="wsTxt"></span>
+    <button id="wsClear" title="Clear watch point">✕</button>
+  </div>
+  <div id="feedList" class="p-scroll"></div>
+  <div class="p-foot">DATA · NWS API · RADAR RAINVIEWER/IEM · SIRENS CURATED</div>
+</aside>
+
+<div id="banner" class="hidden">
+  <span class="b-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 22 20H2Z"/><path d="M12 9.5v4.5"/><path d="M12 16.8v.01"/></svg></span>
+  <div class="b-tx"><b id="bTitle">SIREN ACTIVATION</b><span id="bSub"></span></div>
+  <button class="b-btn" id="btnAck">ACK</button>
+  <button class="b-btn warn" id="btnSilence">SILENCE</button>
+</div>
+
+<div id="legend" class="hidden"><span class="lg-net" id="lgNet"></span><span id="lgItems"></span></div>
+
+<div id="radarCtl">
+  <div class="rrow">
+    <button class="rbtn" id="btnRadar" title="Toggle animated radar">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 12 5.6 5.6"/><path d="M12 7a5 5 0 0 1 5 5"/></svg>
+      RADAR
+    </button>
+    <button class="rbtn hidden" id="btnPlay" title="Play / pause loop"></button>
+    <button class="rbtn hidden" id="radarTime" title="Step one frame">--:--</button>
+  </div>
+  <div id="refl" class="hidden" title="NEXRAD base reflectivity (dBZ)"><i></i><em>20</em><em>45</em><em>65</em></div>
+</div>
+
+<button id="locateBtn" title="Zoom to siren net">
+  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+</button>
+
+<div id="sirenTip" aria-hidden="true">
+  <div class="st-top"><span class="st-lamp"></span><span class="st-name" id="stName"></span><span class="st-id" id="stId"></span></div>
+  <div class="st-rule"></div>
+  <div class="st-geo"><em>LAT</em><span id="stLat"></span><em>LNG</em><span id="stLng"></span></div>
+  <div class="st-sub" id="stSub"></div>
+</div>
+
+<div id="toasts"></div>
+
+<div id="modalWrap" class="hidden">
+  <div id="modal">
+    <div class="m-head"><span class="p-tick"></span><h2>SITE MANAGER</h2><span class="m-sub">STORED IN THIS BROWSER</span><button class="m-x" id="btnModalX" title="Close">✕</button></div>
+    <div class="m-body">
+      <div id="siteRows"></div>
+      <div class="m-add">
+        <div class="m-form">
+          <label>ID<input id="fId" placeholder="auto" maxlength="6" spellcheck="false"></label>
+          <label>NAME<input id="fName" placeholder="e.g. FIRE STN 1" maxlength="40" spellcheck="false"></label>
+          <label>LATITUDE<input id="fLat" inputmode="decimal" placeholder="44.01234" spellcheck="false"></label>
+          <label>LONGITUDE<input id="fLng" inputmode="decimal" placeholder="-92.46870" spellcheck="false"></label>
+        </div>
+        <div class="m-actions">
+          <button class="m-btn" id="btnPick">PICK ON MAP</button>
+          <button class="m-btn primary" id="btnAddSite">ADD SITE</button>
+        </div>
+        <div class="m-hint">PICK ON MAP, THEN CLICK THE MAP TO DROP COORDINATES. IN GOOGLE MAPS, RIGHT-CLICK ANY
+        SPOT AND COPY THE "LAT, LNG" LINE — FIRST NUMBER = LATITUDE, SECOND = LONGITUDE (NEGATIVE WEST OF GREENWICH).
+        NO NATIONAL SIREN DATABASE EXISTS — SIRENS ARE COUNTY/CITY ASSETS. THE OSM SCAN PULLS CROWDSOURCED
+        "EMERGENCY=SIREN" TAGS AND IS A BEST-EFFORT STARTING POINT.</div>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="m-btn" id="btnScan" title="Search OpenStreetMap for sirens in the current map view">SCAN VIEW · OSM</button>
+      <button class="m-btn" id="btnResetSites">CLEAR MY SITES</button>
+      <span class="m-note" id="siteNote">SAVES TO THIS BROWSER ONLY, PER STATE. THE CURATED SET STAYS PUT — YOUR SITES ARE LAYERED ON TOP.</span>
+      <button class="m-btn primary" id="btnSaveSites">SAVE &amp; CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<div id="boot">
+  <div class="b-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 22 20H2Z"/><path d="M12 9.5v4.5"/><path d="M12 16.8v.01"/></svg></div>
+  <div class="b-name">WXALERT</div>
+  <div class="b-line">SIREN NET · ESTABLISHING NWS LINK<span class="cur"></span></div>
+  <button id="bootRetry" class="hidden">RETRY LINK</button>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* =====================================================================
+   CONFIG
+   ---------------------------------------------------------------------
+   HOME      : where the map opens when there is no saved state or watch
+               point (Tampa, FL).
+   ACTIVATE_ON : exact NWS event names that trigger siren activation.
+
+   Sirens are NOT hard-coded any more. They stream from the curated
+   dataset in ./data (states.json + sirens.bystate.json), built by the
+   scrapers in this repo. The SITES manager lets you layer your own
+   sites on top — those persist per state under "wxuser_<ST>".
+   ===================================================================== */
+const HOME = {state:'FL', lat:27.9506, lng:-82.4572, zoom:11, label:'TAMPA, FL'};
+const ACTIVATE_ON = ['Tornado Warning','Severe Thunderstorm Warning','Civil Emergency Message'];
+
+const TILE_THEMES = [
+  {name:'NIGHT',    filter:'invert(1) hue-rotate(180deg) brightness(1.02) contrast(.9) saturate(.55) grayscale(.25)'},
+  {name:'MIDNIGHT', filter:'invert(1) hue-rotate(185deg) brightness(.8) contrast(1.08) saturate(.45) grayscale(.35)'},
+  {name:'GRAPHITE', filter:'grayscale(1) invert(1) brightness(.95) contrast(.95)'},
+  {name:'STANDARD', filter:'none'},
+];
+
+const STATE0 = localStorage.getItem('wxstate') || HOME.state;
+const POLL_MS = 60000;
+const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2,'0');
+const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const hhmmss = d => `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+function fetchT(url, ms=10000, opts={}){
+  const c = new AbortController();
+  const t = setTimeout(()=>c.abort(), ms);
+  return fetch(url, {...opts, signal:c.signal}).finally(()=>clearTimeout(t));
+}
+function endsTxt(iso){
+  if(!iso) return '—';
+  const ms = new Date(iso).getTime() - Date.now();
+  if(ms <= 0) return 'ENDING';
+  const s = Math.floor(ms/1000);
+  return s >= 3600 ? `${Math.floor(s/3600)}H${pad(Math.floor((s%3600)/60))}` : `${Math.floor(s/60)}:${pad(s%60)}`;
+}
+
+/* ---------- event → color ---------- */
+const EV_COLORS = {
+  'Tornado Warning':'#FF4B3E','Severe Thunderstorm Warning':'#FFA23E',
+  'Flash Flood Warning':'#3FC46A','Flood Warning':'#3FC46A',
+  'Tornado Watch':'#F2C744','Severe Thunderstorm Watch':'#E8B24A',
+  'Winter Storm Warning':'#6FA8DC','Winter Weather Advisory':'#7FB8E0',
+  'Blizzard Warning':'#E85D4A','Ice Storm Warning':'#C86BD9',
+  'Excessive Heat Warning':'#FF7A5C','Heat Advisory':'#FF9E7A',
+  'High Wind Warning':'#D9A441','High Wind Watch':'#D9A441','Wind Advisory':'#C9B458',
+  'Red Flag Warning':'#E8552F','Fire Weather Watch':'#E89A3F',
+  'Dense Fog Advisory':'#9AA5A8','Special Weather Statement':'#B9C6CC',
+};
+const SEV_COLORS = {Extreme:'#FF4B3E', Severe:'#FFA23E', Moderate:'#F2C744', Minor:'#5FB8B0', Unknown:'#98A6AD'};
+const colorFor = p => EV_COLORS[p.event] || SEV_COLORS[p.severity] || '#98A6AD';
+const levelFor = p => {
+  const ev = (p.event||'').toLowerCase();
+  if(ACTIVATE_ON.some(e => ev === e.toLowerCase())) return 'activate';
+  if(ev.endsWith('warning') && p.severity === 'Extreme') return 'activate';
+  if(ev.includes('watch')) return 'watch';
+  return 'info';
+};
+function tagsFor(p){
+  const t = [], pr = p.parameters || {};
+  if((pr.tornadoDetection||[])[0] === 'OBSERVED') t.push('OBSERVED');
+  const dt = (pr.damageThreat||[])[0] || '';
+  if(/catastrophic/i.test(dt)) t.push('CATASTROPHIC DMG');
+  else if(/considerable/i.test(dt)) t.push('CONSIDERABLE DMG');
+  if(/PARTICULARLY DANGEROUS SITUATION/i.test(p.description||'')) t.push('PDS');
+  if(p.status && p.status !== 'Actual') t.push(p.status.toUpperCase());
+  return t;
+}
+
+/* ---------- geometry ---------- */
+function pip(pt, ring){
+  let inside = false;
+  for(let i=0, j=ring.length-1; i<ring.length; j=i++){
+    const [xi,yi]=ring[i], [xj,yj]=ring[j];
+    if(((yi>pt[1]) !== (yj>pt[1])) && (pt[0] < (xj-xi)*(pt[1]-yi)/(yj-yi)+xi)) inside = !inside;
+  }
+  return inside;
+}
+function distToRingMiles(pt, ring){
+  const kx = 69.17*Math.cos(pt[1]*Math.PI/180), ky = 69.17;
+  const px = pt[0]*kx, py = pt[1]*ky;
+  let best = Infinity, bcp = ring[0];
+  for(let i=0, j=ring.length-1; i<ring.length; j=i++){
+    const ax=ring[j][0]*kx, ay=ring[j][1]*ky, bx=ring[i][0]*kx, by=ring[i][1]*ky;
+    const dx=bx-ax, dy=by-ay, L=dx*dx+dy*dy;
+    const t = L ? Math.max(0, Math.min(1, ((px-ax)*dx+(py-ay)*dy)/L)) : 0;
+    const ex=px-(ax+t*dx), ey=py-(ay+t*dy), d=Math.hypot(ex,ey);
+    if(d < best){ best=d; bcp=[ax+t*dx, ay+t*dy]; }
+  }
+  return {mi: best, cp: [bcp[0]/kx, bcp[1]/ky]};
+}
+function distPointGeom(pt, geom){
+  const polys = geom.type==='Polygon' ? [geom.coordinates]
+              : geom.type==='MultiPolygon' ? geom.coordinates : [];
+  let res = null;
+  for(const rings of polys){
+    if(pip(pt, rings[0])) return {inside:true, mi:0, dir:'—'};
+    const d = distToRingMiles(pt, rings[0]);
+    if(!res || d.mi < res.mi) res = {inside:false, mi:d.mi, dir:compass(pt, d.cp)};
+  }
+  return res;
+}
+/* ---------- bounding-box rejection (the big perf lever) ----------
+   Point-in-polygon walks every vertex of every ring. With 5k+ sirens and a
+   few dozen alerts that is millions of ops per refresh. A cached bbox lets
+   us throw away the 99.9% of sirens that aren't anywhere near an alert
+   before doing any real geometry. Cached on the geometry object itself. */
+function geomBBox(g){
+  if(g._bbox) return g._bbox;
+  if(g.type !== 'Polygon' && g.type !== 'MultiPolygon') return null;
+  const rings = g.type === 'Polygon' ? g.coordinates : g.coordinates.flat();
+  let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
+  for(const r of rings) for(const c of r){
+    if(c[0] < x0) x0 = c[0];
+    if(c[0] > x1) x1 = c[0];
+    if(c[1] < y0) y0 = c[1];
+    if(c[1] > y1) y1 = c[1];
+  }
+  if(!isFinite(x0)) return null;
+  g._bbox = [x0, y0, x1, y1];
+  return g._bbox;
+}
+/* ~40 statute miles of slop, in degrees, widened by 1/cos(lat) for longitude */
+function nearBBox(bb, lat, lng){
+  const pad = 0.75;
+  const kx = Math.max(Math.abs(Math.cos(lat*Math.PI/180)), 0.15);
+  return lng >= bb[0]-pad/kx && lng <= bb[2]+pad/kx && lat >= bb[1]-pad && lat <= bb[3]+pad;
+}
+/* flatten the active set once per pass: {alert, geom, bbox} */
+function activeGeoms(list){
+  const out = [];
+  for(const a of list){
+    if(!a.geoms || !a.geoms.length) continue;
+    for(const g of a.geoms){
+      const bb = geomBBox(g);
+      if(bb) out.push({a, g, bb});
+    }
+  }
+  return out;
+}
+function compass(pt, cp){
+  const kx = 69.17*Math.cos(pt[1]*Math.PI/180);
+  const b = (Math.atan2((cp[0]-pt[0])*kx, (cp[1]-pt[1])*69.17)*180/Math.PI + 360) % 360;
+  return ['N','NE','E','SE','S','SW','W','NW'][Math.round(b/45)%8];
+}
+
+/* ---------- audio ---------- */
+let armed = false;
+const SirenAudio = {
+  ctx:null, master:null, voice:null, playing:false,
+  ensure(){
+    if(!this.ctx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AC();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 0;
+      this.master.connect(this.ctx.destination);
+    }
+    if(this.ctx.state === 'suspended') this.ctx.resume();
+  },
+  setArmed(on){ this.ensure(); this.master.gain.setTargetAtTime(on?1:0, this.ctx.currentTime, .03); },
+  start(){
+    if(!armed || this.playing) return;
+    this.ensure();
+    this.playing = true;
+    const t = this.ctx.currentTime;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(.0001, t);
+    g.gain.exponentialRampToValueAtTime(.35, t+.8);
+    g.connect(this.master);
+    const f = this.ctx.createBiquadFilter();
+    f.type='lowpass'; f.frequency.value=1300; f.Q.value=1.2; f.connect(g);
+    const lfo = this.ctx.createOscillator(); lfo.type='sine'; lfo.frequency.value=.24;
+    const lg = this.ctx.createGain(); lg.gain.value=175; lfo.connect(lg);
+    const mk = det => { const o=this.ctx.createOscillator(); o.type='sawtooth';
+      o.frequency.value=425; o.detune.value=det; lg.connect(o.frequency); o.connect(f); o.start(t); return o; };
+    const o1 = mk(0), o2 = mk(9);
+    lfo.start(t);
+    this.voice = {g, o1, o2, lfo};
+  },
+  stop(){
+    if(!this.playing) return;
+    const {g,o1,o2,lfo} = this.voice, t = this.ctx.currentTime;
+    g.gain.setTargetAtTime(.0001, t, .25);
+    setTimeout(()=>{ try{o1.stop();o2.stop();lfo.stop();}catch(e){} }, 1200);
+    this.playing = false;
+  },
+  chirp(){
+    if(!this.ctx || !armed) return;
+    this.ensure();
+    const t = this.ctx.currentTime;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type='square';
+    g.gain.setValueAtTime(.0001,t);
+    g.gain.exponentialRampToValueAtTime(.1,t+.02);
+    g.gain.exponentialRampToValueAtTime(.0001,t+.2);
+    o.frequency.setValueAtTime(988,t); o.frequency.setValueAtTime(740,t+.12);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t+.25);
+  }
+};
+
+/* ---------- map ---------- */
+const map = L.map('map', {zoomControl:false, minZoom:4, maxZoom:18}).setView([HOME.lat, HOME.lng], HOME.zoom);
+L.control.zoom({position:'bottomright'}).addTo(map);
+L.control.scale({position:'bottomleft', imperial:true, metric:false}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  {attribution:'© OpenStreetMap contributors', maxZoom:19}).addTo(map);
+map.attributionControl.setPrefix('');
+/* panels/banner hang off the header's real height (it wraps to 2 rows on phones) */
+function syncHdr(){ document.documentElement.style.setProperty('--hdrH', $('topbar').offsetHeight + 'px'); }
+window.addEventListener('resize', ()=>{ map.invalidateSize(); syncHdr(); });
+window.addEventListener('load', syncHdr);
+function updZoomCls(){ $('map').classList.toggle('z10', map.getZoom() >= 10); }
+map.on('zoomend', updZoomCls);
+
+/* persist the current map centre + zoom so a refresh reopens the exact view */
+function saveView(){
+  try{
+    const c = map.getCenter();
+    localStorage.setItem('wxview', JSON.stringify({
+      state: STATE, lat: +c.lat.toFixed(5), lng: +c.lng.toFixed(5), zoom: map.getZoom()
+    }));
+  }catch(e){}
+}
+map.on('moveend zoomend', saveView);
+
+/* radar gets its own pane OUTSIDE the filtered tile pane, above basemap, below vectors */
+map.createPane('radar');
+map.getPane('radar').style.zIndex = 350;
+map.getPane('radar').style.pointerEvents = 'none';
+
+/* sirens get a pane above the alert polygons (overlayPane = 400) but below
+   the marker pane (600) so the watch point still sits on top */
+map.createPane('sirens');
+map.getPane('sirens').style.zIndex = 450;
+map.getPane('sirens').style.pointerEvents = 'none';
+
+const alertLayer = L.layerGroup().addTo(map);
+
+/* ---------- app state ---------- */
+let STATE = STATE0;
+let sites = [], sirens = [];
+let watch = null, watchMarker = null, hereCount = 0;
+let alerts = new Map();
+let testAlert = null, testTimer = null;
+let zoneCache = new Map();
+let selectedId = null;
+let expanded = new Set();
+let feedMode = 'all';
+let threatSet = new Set(), acked = false;
+let nextSync = Date.now(), fetching = false, booted = false, syncPending = false;
+let polyIndex = {}, polyKey = '';
+let geoVersion = 0;
+let _nearCache = {v:-1, mode:null, list:null};
+const logEntries = [];
+
+const feedList=$('feedList'), sirenList=$('sirenList'), logList=$('logList'),
+      toasts=$('toasts'), banner=$('banner');
+
+/* ---------- toasts / log ---------- */
+function toast(msg, kind='info', ttl=4200){
+  const t = document.createElement('div');
+  t.className = 'toast ' + kind;
+  const k = document.createElement('span'); k.className='tk';
+  const m = document.createElement('span'); m.className='tm'; m.textContent = msg;
+  t.append(k,m); toasts.appendChild(t);
+  while(toasts.children.length > 4) toasts.firstChild.remove();
+  requestAnimationFrame(()=>t.classList.add('in'));
+  setTimeout(()=>{ t.classList.remove('in'); setTimeout(()=>t.remove(), 300); }, ttl);
+}
+function log(msg, cls=''){
+  logEntries.unshift({t:new Date(), msg, cls});
+  if(logEntries.length > 40) logEntries.pop();
+  logList.innerHTML = logEntries.map(e =>
+    `<div class="log-row ${e.cls}"><span>${hhmmss(e.t)}</span>${esc(e.msg)}</div>`).join('');
+}
+
+/* ---------- siren canvas layer ----------------------------------
+   One <canvas> paints every siren. The old version built a Leaflet marker
+   (DOM node + event handlers + inner HTML) per site, so a 5,700-siren state
+   meant 5,700 nodes on every pan, zoom and refresh — that was the lag.
+   Here: one draw pass, and hit-testing against a cached screen-space list. */
+const SirenCanvas = L.Layer.extend({
+  options:{pad:220, r:5, lblZoom:11, maxLabels:140, maxLabelTries:1200},
+
+  initialize(opts){
+    L.setOptions(this, opts);
+    this._hover = null; this._raf = 0; this._pts = []; this._alertN = 0; this._fxRect = null;
+  },
+
+  onAdd(m){
+    this._map = m;
+    if(!this._cv){
+      /* two stacked canvases: _cv holds the static sirens, _fx holds only the
+         handful of things that move (pulse rings + hover halo). Repainting a
+         full-viewport canvas is expensive, so _cv is only redrawn when the
+         data or the view changes — never once per animation frame. */
+      this._cv = L.DomUtil.create('canvas', 'siren-cv');
+      this._fx = L.DomUtil.create('canvas', 'siren-cv');
+    }
+    m.getPane('sirens').appendChild(this._cv);
+    m.getPane('sirens').appendChild(this._fx);
+    this._reset = () => this.reset();
+    m.on('moveend zoomend resize viewreset', this._reset, this);
+    this.reset();
+  },
+  onRemove(m){
+    m.off('moveend zoomend resize viewreset', this._reset, this);
+    L.DomUtil.remove(this._cv);
+    L.DomUtil.remove(this._fx);
+    this.stopAnim();
+  },
+
+  reset(){
+    const m = this._map;
+    if(!m) return;
+    const size = m.getSize(), p = this.options.pad;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = size.x + p*2, h = size.y + p*2;
+    this._dpr = dpr;
+    const tl = m.containerPointToLayerPoint([0,0]).subtract([p,p]);
+    this._origin = tl;
+    for(const cv of [this._cv, this._fx]){
+      cv.width  = Math.round(w*dpr);
+      cv.height = Math.round(h*dpr);
+      cv.style.width  = w + 'px';
+      cv.style.height = h + 'px';
+      L.DomUtil.setPosition(cv, tl);
+    }
+    this._fxRect = null;
+    this.rebuild();
+  },
+
+  _diamond(ctx, x, y, r){
+    ctx.beginPath();
+    ctx.moveTo(x, y-r); ctx.lineTo(x+r, y); ctx.lineTo(x, y+r); ctx.lineTo(x-r, y);
+    ctx.closePath();
+  },
+
+  _paint(cv){
+    const m = this._map, ctx = cv.getContext('2d');
+    const dpr = this._dpr, o = this._origin;
+    const x0 = o.x, y0 = o.y, x1 = o.x + cv.width/dpr, y1 = o.y + cv.height/dpr;
+    const pts = this._pts = [];
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.setTransform(dpr,0,0,dpr, -o.x*dpr, -o.y*dpr);
+    ctx.font = '600 9.5px "IBM Plex Mono", monospace';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'miter';
+
+    const showLbl = m.getZoom() >= this.options.lblZoom;
+    const boxes = [];
+    let labels = 0, tries = 0;
+    const r = this.options.r;
+
+    for(const s of sirens){
+      const p = m.latLngToLayerPoint([s.lat, s.lng]);
+      if(p.x < x0-8 || p.x > x1+8 || p.y < y0-8 || p.y > y1+8) continue;
+      pts.push({s, x:p.x, y:p.y});
+      this._diamond(ctx, p.x, p.y, r);
+      ctx.fillStyle = s.status === 'alert' ? 'rgba(255,75,62,.30)' : '#10161A';
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = s.status === 'alert' ? '#FF4B3E'
+                      : s.status === 'watch' ? '#F2C744' : '#5C6C75';
+      ctx.stroke();
+      if(showLbl && labels < this.options.maxLabels && tries < this.options.maxLabelTries){
+        tries++;
+        const tw = ctx.measureText(s.id).width, bw = tw + 10, bh = 15;
+        const bx = p.x + 9, by = p.y - 13;
+        let clash = false;
+        for(const b of boxes){
+          if(bx < b[0]+b[2] && bx+bw > b[0] && by < b[1]+b[3] && by+bh > b[1]){ clash = true; break; }
+        }
+        if(!clash){
+          boxes.push([bx, by, bw, bh]);
+          ctx.fillStyle = 'rgba(10,13,15,.78)';
+          ctx.fillRect(bx, by, bw, bh);
+          ctx.strokeStyle = '#232C33'; ctx.lineWidth = 1;
+          ctx.strokeRect(bx+.5, by+.5, bw-1, bh-1);
+          ctx.fillStyle = '#A9B8BF';
+          ctx.fillText(s.id, bx+5, by+bh/2+.5);
+          labels++;
+        }
+      }
+    }
+  },
+
+  /* Redraw just the effects overlay: clear the rectangle we dirtied last
+     time, then draw the pulse rings and the hover halo. Only a few markers
+     are ever moving, so this stays cheap — no full-canvas blit. */
+  _composite(){
+    const m = this._map;
+    if(!m) return;
+    const ctx = this._fx.getContext('2d'), dpr = this._dpr, o = this._origin;
+    const pr = this._fxRect;
+    ctx.setTransform(1,0,0,1,0,0);
+    if(pr) ctx.clearRect(pr[0], pr[1], pr[2], pr[3]);
+    this._fxRect = null;
+
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    ctx.setTransform(dpr,0,0,dpr, -o.x*dpr, -o.y*dpr);
+    const t = (performance.now() % 1300) / 1300;
+    const pr2 = this.options.r * (0.6 + 2.8*t);
+    const hr = this.options.r + 4;
+    let drew = false;
+
+    for(const it of this._pts){
+      const isHov = this._hover && it.s.id === this._hover;
+      const isAlert = it.s.status === 'alert';
+      if(!isHov && !isAlert) continue;
+      const rr = (isAlert ? pr2 : 0) > (isHov ? hr : 0) ? (isAlert ? pr2 : 0) : (isHov ? hr : 0);
+      const e = rr + 4;
+      if(it.x - e < x0) x0 = it.x - e;
+      if(it.x + e > x1) x1 = it.x + e;
+      if(it.y - e < y0) y0 = it.y - e;
+      if(it.y + e > y1) y1 = it.y + e;
+      drew = true;
+
+      if(isHov){                                   /* white halo, marker on top */
+        this._diamond(ctx, it.x, it.y, hr);
+        ctx.fillStyle = '#E9EEF1'; ctx.fill();
+        this._diamond(ctx, it.x, it.y, this.options.r);
+        ctx.fillStyle = it.s.status === 'alert' ? 'rgba(255,75,62,.30)' : '#10161A';
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = it.s.status === 'alert' ? '#FF4B3E'
+                        : it.s.status === 'watch' ? '#F2C744' : '#5C6C75';
+        ctx.stroke();
+      }
+      if(isAlert){
+        ctx.globalAlpha = 0.85 * (1 - t);
+        this._diamond(ctx, it.x, it.y, pr2);
+        ctx.strokeStyle = '#FF4B3E'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
+    if(drew){
+      ctx.setTransform(1,0,0,1,0,0);
+      const w = this._fx.width, h = this._fx.height;
+      const ax = Math.max(0, Math.floor((x0 - o.x) * dpr)), ay = Math.max(0, Math.floor((y0 - o.y) * dpr));
+      const bx = Math.min(w, Math.ceil((x1 - o.x) * dpr)), by = Math.min(h, Math.ceil((y1 - o.y) * dpr));
+      if(bx > ax && by > ay) this._fxRect = [ax, ay, bx - ax, by - ay];
+    }
+  },
+
+  startAnim(){
+    if(this._raf) return;
+    const loop = () => { this._raf = requestAnimationFrame(loop); this._composite(); };
+    this._raf = requestAnimationFrame(loop);
+  },
+  stopAnim(){ if(this._raf){ cancelAnimationFrame(this._raf); this._raf = 0; } },
+
+  /* Data or view changed: repaint the static layer once, refresh the effects
+     overlay, and only run the animation loop while something is pulsing. */
+  rebuild(){
+    if(!this._map) return;
+    this._paint(this._cv);
+    this._composite();
+    if(this._alertN > 0) this.startAnim(); else this.stopAnim();
+  },
+
+  setAlertN(n){ this._alertN = n|0; },
+  setHover(id){
+    if(this._hover === id) return;
+    this._hover = id;
+    this.rebuild();
+  },
+  /* nearest on-screen siren to a layer point, within tol px */
+  hit(lp, tol){
+    let best = null, bd = tol*tol;
+    for(const it of this._pts){
+      const dx = it.x - lp.x, dy = it.y - lp.y, d = dx*dx + dy*dy;
+      if(d < bd){ bd = d; best = it.s; }
+    }
+    return best;
+  }
+});
+const sirenCanvas = new SirenCanvas().addTo(map);
+
+/* ---------- sites ---------- */
+function buildSirens(){
+  threatSet.clear();
+  sirens = sites.map(s => ({...s, status:'idle', insideEv:null, nearest:null}));
+  sirenCanvas.setAlertN(0);   /* nothing evaluated yet — draw the fast path */
+  sirenCanvas.rebuild();
+  updLoc();
+}
+
+/* ---------- curated dataset (data/states.json + data/sirens.bystate.json) ---------- */
+let BYSTATE = null, STATES_META = [];
+function stateMeta(code){ return STATES_META.find(s => s.abbr === code) || null; }
+async function loadDataset(){
+  const [st, by] = await Promise.all([
+    fetch('data/states.json').then(r => r.json()),
+    fetch('data/sirens.bystate.json').then(r => r.json())
+  ]);
+  STATES_META = st; BYSTATE = by;
+  const dl = $('stateOpts');
+  if(dl) dl.innerHTML = st.map(s => `<option value="${esc(s.abbr)}">${esc(s.name)}</option>`).join('');
+}
+function roundKey(lat, lng){ return lat.toFixed(4) + ',' + lng.toFixed(4); }
+function loadUserSites(code){
+  try{
+    const a = JSON.parse(localStorage.getItem('wxuser_' + code) || 'null');
+    if(Array.isArray(a)) return a.map(s => ({id:String(s.id||'').slice(0,40), name:String(s.name||'SIREN').slice(0,40), lat:+s.lat, lng:+s.lng}));
+  }catch(e){}
+  return [];
+}
+function saveUserSites(code, list){ try{ localStorage.setItem('wxuser_' + code, JSON.stringify(list)); }catch(e){} }
+function mergeSites(curated, user){
+  const out = curated.map(s => ({...s}));
+  const seen = new Set(out.map(s => roundKey(s.lat, s.lng)));
+  for(const u of user){
+    const i = out.findIndex(s => s.id === u.id);
+    if(i >= 0){ out[i] = {...u}; continue; }            /* user override by id */
+    const k = roundKey(u.lat, u.lng);
+    if(seen.has(k)) continue;                          /* skip duplicate coordinate */
+    out.push({...u}); seen.add(k);
+  }
+  return out;
+}
+function loadSirensForState(code, fly){
+  STATE = code;
+  localStorage.setItem('wxstate', STATE);
+  const curated = (BYSTATE && BYSTATE[code] || []).map((s, i) => ({
+    id: String(s.id || (code + '-' + String(i + 1).padStart(3, '0'))).slice(0, 40),
+    name: String(s.name || 'SIREN').slice(0, 40),
+    lat: +s.lat, lng: +s.lng
+  }));
+  const user = loadUserSites(code);
+  sites = mergeSites(curated, user);
+  $('stateInput').value = STATE;
+  $('chipAll').textContent = 'ALL ' + STATE;
+  buildSirens();
+  if(fly){
+    const m = stateMeta(code);
+    if(m && Array.isArray(m.center) && m.center.length === 2) map.flyTo(m.center, m.zoom || 7, {duration:.8});
+  }
+  updLoc();
+  refreshUI();
+}
+
+/* ---------- per-state siren nets ----------
+   A state's net = its curated dataset plus any sites you added for that
+   state (stored under wxuser_<ST>). Switching feed state rebuilds it. */
+function maybeSwitchNet(){
+  /* With the curated dataset, the "net" is the selected state's sirens.
+     If the watch point sits in a different state, switch to it — but don't
+     fly (the watch point itself drives the view). */
+  if(watch && watch.state && /^[A-Z]{2}$/.test(watch.state) && watch.state !== STATE){
+    switchState(watch.state, true, false);
+  }
+}
+function fitNet(){
+  if(!sirens.length) return;
+  const b = L.latLngBounds(sirens.map(s=>[s.lat,s.lng]));
+  const wide = map.getContainer().clientWidth > 1080;
+  map.flyToBounds(b.pad(.5), wide
+    ? {paddingTopLeft:[340,90], paddingBottomRight:[390,90], duration:.8}
+    : {paddingTopLeft:[20,80],  paddingBottomRight:[20,80],  duration:.8});
+}
+
+/* ---------- watch point ---------- */
+function drawWatch(){
+  if(watchMarker){ map.removeLayer(watchMarker); watchMarker = null; }
+  if(!watch) return;
+  watchMarker = L.marker([watch.lat, watch.lng], {
+    icon: L.divIcon({className:'', iconSize:[0,0], iconAnchor:[0,0],
+      html:`<div class="wp"><span class="wp-ring"></span><span class="wp-dot"></span><span class="wp-lbl">${esc((watch.label||'WATCH PT').split(',')[0].toUpperCase().slice(0,24))}</span></div>`}),
+    zIndexOffset:600
+  }).addTo(map);
+}
+function setWatch(loc){
+  watch = {lat:loc.lat, lng:loc.lng, label:loc.label||'WATCH POINT', state:loc.state||null, city:loc.city||null, cwa:loc.cwa||null};
+  localStorage.setItem('wxwatch', JSON.stringify(watch));
+  drawWatch();
+  updLoc();
+  maybeSwitchNet();
+  geoVersion++;
+  map.flyTo([watch.lat, watch.lng], Math.max(map.getZoom(),10), {duration:.8});
+  refreshUI();
+  log(`WATCH POINT SET · ${watch.label.split(',')[0].toUpperCase()}`);
+  /* derive NWS metadata + auto-switch feed state (optional, non-fatal) */
+  fetchT(`https://api.weather.gov/points/${watch.lat.toFixed(4)},${watch.lng.toFixed(4)}`, 9000,
+    {headers:{Accept:'application/geo+json'}})
+  .then(r => r.ok ? r.json() : null)
+  .then(j => {
+    if(!j || !j.properties) return;
+    const p = j.properties;
+    /* relativeLocation is a GeoJSON Feature — city/state sit in its .properties */
+    const rl = (p.relativeLocation && p.relativeLocation.properties) || {};
+    watch.state = rl.state || null;
+    watch.city  = rl.city || null;
+    watch.cwa   = p.cwa || null;
+    localStorage.setItem('wxwatch', JSON.stringify(watch));
+    refreshUI();
+    updLoc();
+    if(watch.state && /^[A-Z]{2}$/.test(watch.state) && watch.state !== STATE)
+      switchState(watch.state, true);
+  })
+  .catch(()=>{});
+}
+function clearWatch(){
+  watch = null;
+  localStorage.removeItem('wxwatch');
+  drawWatch();
+  updLoc();
+  geoVersion++;
+  refreshUI();
+  log('WATCH POINT CLEARED');
+}
+/* header subtitle tracks the selected state's net */
+function updLoc(){
+  const full = (stateMeta(STATE) && stateMeta(STATE).name) || STATE;
+  $('brandSub').textContent = full.toUpperCase() + ' SIREN NET';
+  $('netSub').textContent = `${sirens.length} SITES · ${full.toUpperCase()}`;
+  const note = $('siteNote');
+  if(note) note.textContent = `SAVES TO THIS BROWSER ONLY, PER STATE. THE ${sirens.length} CURATED SITE(S) FOR ${STATE} STAY PUT — YOURS ARE LAYERED ON TOP.`;
+}
+
+/* ---------- search (zip → Census, else Nominatim; free, no keys) ---------- */
+let qList = [], qTimer = null, qSeq = 0;
+const qCache = new Map();
+const Q_DEBOUNCE_MS = 450;   /* fire only after the typing pauses */
+async function censusGeo(q){
+  const r = await fetchT(`https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=${encodeURIComponent(q)}&benchmark=Public_AR_Current&format=json`, 9000);
+  if(!r.ok) return [];
+  const j = await r.json();
+  const m = j.result && j.result.addressMatches && j.result.addressMatches[0];
+  return m ? [{lat:m.coordinates.y, lng:m.coordinates.x, label:m.matchedAddress, src:'CENSUS'}] : [];
+}
+async function geocode(q){
+  let out = [];
+  if(/^\d{5}(-\d{4})?$/.test(q)){
+    try{ out = await censusGeo(q); }catch(e){}
+  }
+  try{
+    const r = await fetchT(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&countrycodes=us&q=${encodeURIComponent(q)}`, 9000);
+    if(r.ok){
+      for(const it of await r.json()){
+        const lat = +it.lat, lng = +it.lon;
+        if(isFinite(lat) && isFinite(lng) && !out.some(o=>Math.abs(o.lat-lat)<1e-4 && Math.abs(o.lng-lng)<1e-4))
+          out.push({lat, lng, label:it.display_name, src:'OSM', type:it.type||it.category});
+      }
+    }
+  }catch(e){}
+  if(!out.length && !/^\d{5}/.test(q)){ try{ out = await censusGeo(q); }catch(e){} }
+  return out;
+}
+function hideRes(){ $('qRes').classList.add('hidden'); }
+function renderRes(list, q){
+  const box = $('qRes');
+  qList = list;
+  if(!list.length){
+    box.innerHTML = `<div class="q-empty">NO MATCH FOR “${esc(q.toUpperCase())}”</div>`;
+  }else{
+    box.innerHTML = list.map((r,i)=>{
+      const parts = r.label.split(',');
+      const main = (parts[0]||r.label).trim();
+      const rest = parts.slice(1).join(',').trim();
+      const tag = (r.src==='CENSUS'?'ZIP':'OSM') + (r.type?' · '+String(r.type).toUpperCase().replace(/_/g,' '):'');
+      return `<button class="qr" data-i="${i}"><span class="tag">${esc(tag)}</span><b>${esc(main.toUpperCase())}</b><span>${esc(rest || (r.lat.toFixed(3)+', '+r.lng.toFixed(3)))}</span></button>`;
+    }).join('');
+  }
+  box.classList.remove('hidden');
+}
+async function doSearch(qraw){
+  const q = qraw.trim();
+  if(!q){ hideRes(); return; }
+  /* qSeq guards against a slow reply for an older query overwriting a newer
+     one — and cancels the spinner if a newer keystroke lands */
+  const seq = ++qSeq;
+  const spin = setTimeout(()=>{
+    if(seq !== qSeq) return;
+    $('qRes').innerHTML = `<div class="q-empty">SEARCHING…</div>`;
+    $('qRes').classList.remove('hidden');
+  }, 260);   /* only flash the spinner if the geocoder is actually slow */
+  try{
+    let res = qCache.get(q);
+    if(!res){
+      res = await geocode(q);
+      if(qCache.size > 40) qCache.clear();
+      qCache.set(q, res);
+    }
+    clearTimeout(spin);
+    if(seq !== qSeq) return;
+    renderRes(res, q);
+  }catch(e){ clearTimeout(spin); if(seq === qSeq) renderRes([], q); }
+}
+ $('q').addEventListener('input', ()=>{
+  const v = $('q').value.trim();
+  $('qClear').classList.toggle('hidden', !v);
+  clearTimeout(qTimer);
+  if(v.length < 3){ qSeq++; hideRes(); return; }
+  qTimer = setTimeout(()=>doSearch(v), Q_DEBOUNCE_MS);   /* wait for a typing pause */
+});
+ $('q').addEventListener('keydown', e=>{
+  if(e.key === 'Enter'){
+    e.preventDefault(); clearTimeout(qTimer);
+    if(qList.length) { hideRes(); setWatch(qList[0]); }
+    else doSearch($('q').value);
+  }
+  if(e.key === 'Escape'){ hideRes(); $('q').blur(); }
+});
+ $('qClear').addEventListener('click', ()=>{ $('q').value=''; $('qClear').classList.add('hidden'); hideRes(); $('q').focus(); });
+ $('qRes').addEventListener('click', e=>{
+  const b = e.target.closest('.qr');
+  if(!b) return;
+  const loc = qList[+b.dataset.i];
+  if(!loc) return;
+  clearTimeout(qTimer);
+  qSeq++;                                  /* kill any in-flight search */
+  $('q').value = String(loc.label || '').split(',')[0].trim();
+  $('qClear').classList.remove('hidden');
+  hideRes();                               /* close the dropdown on select */
+  setWatch(loc);
+});
+document.addEventListener('click', e=>{ if(!$('searchBox').contains(e.target)) hideRes(); });
+
+/* ---------- data ---------- */
+async function getZoneGeom(url){
+  if(zoneCache.has(url)) return zoneCache.get(url);
+  if(zoneCache.size > 350) zoneCache.clear();
+  try{
+    const r = await fetch(url, {headers:{Accept:'application/geo+json'}});
+    if(!r.ok) throw 0;
+    const j = await r.json();
+    zoneCache.set(url, j.geometry || null);
+    return j.geometry || null;
+  }catch(e){ zoneCache.set(url, null); return null; }
+}
+function normalize(f){
+  const p = f.properties || {};
+  return {
+    id: p.id || ('A'+Math.random().toString(36).slice(2)),
+    event: p.event || 'UNKNOWN EVENT', severity: p.severity || 'Unknown',
+    areaDesc: p.areaDesc || '', headline: p.headline || '',
+    expires: p.expires, sent: p.sent,
+    description: p.description || '', instruction: p.instruction || '',
+    geoms: f.geometry ? [f.geometry] : (f._geoms || []),
+    color: colorFor(p), level: levelFor(p), tags: tagsFor(p),
+    test:false, isNew:false, _bounds:null, _wd:null
+  };
+}
+let fetchCtrl = null;
+async function fetchAlerts(silent=false){
+  fetching = true;
+  setStatus('sync');
+  if(fetchCtrl) fetchCtrl.abort();
+  const myCtrl = new AbortController();
+  fetchCtrl = myCtrl;
+  try{
+    const r = await fetch(`https://api.weather.gov/alerts/active?area=${STATE}`,
+      {headers:{Accept:'application/geo+json'}, signal:myCtrl.signal});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data = await r.json();
+    const feats = data.features || [];
+    /* zone backfill — BUDGETED: only watches/warnings without polygons, capped.
+       Advisories/statements stay zone-based (they never trigger sirens anyway). */
+    const need = feats.filter(f=>{
+      if(f.geometry) return false;
+      const lv = levelFor((f.properties||{}));
+      return lv==='activate' || lv==='watch';
+    }).slice(0,30);
+    await Promise.all(need.map(async f=>{
+      const zs = (f.properties && f.properties.affectedZones) || [];
+      const gs = (await Promise.all(zs.slice(0,12).map(getZoneGeom))).filter(Boolean);
+      f._geoms = gs;
+    }));
+    const prevIds = new Set([...alerts.keys()].filter(id => !(testAlert && id===testAlert.id)));
+    const fresh = [], next = new Map();
+    for(const f of feats){
+      const a = normalize(f);
+      if(!prevIds.has(a.id)) fresh.push(a);
+      next.set(a.id, a);
+    }
+    alerts = next;
+    if(testAlert) alerts.set(testAlert.id, testAlert);
+    expanded = new Set([...expanded].filter(id => alerts.has(id)));
+    geoVersion++;
+    if(booted && fresh.length && !silent){
+      fresh.sort((a,b)=>(a.level==='activate'?0:1)-(b.level==='activate'?0:1));
+      if(fresh.length <= 3) fresh.forEach(a=>
+        toast(`NEW: ${a.event.toUpperCase()}${a.test?' · TEST':''}`, a.level==='activate'?'warn':'info'));
+      else toast(`${fresh.length} NEW ALERTS POSTED`, 'info');
+      if(fresh.some(a=>a.level==='activate')) SirenAudio.chirp();
+    }
+    if(booted) fresh.forEach(a=>log(`POSTED · ${a.event}${a.test?' · TEST':''}`, a.level==='activate'?'warn':''));
+    setStatus('ok');
+    $('syncSub').textContent = 'SYNC ' + hhmmss(new Date());
+    if(!booted){ booted = true; $('boot').classList.add('gone'); log(`NWS LINK UP — ${feats.length} ACTIVE FOR ${STATE}`,'ok'); }
+    refreshUI();
+  }catch(e){
+    if(e.name === 'AbortError') return;
+    setStatus('err');
+    log('NWS LINK DOWN — ' + e.message, 'err');
+    if(booted) toast('NWS LINK FAILED — WILL RETRY', 'warn');
+    else $('bootRetry').classList.remove('hidden');
+  }finally{
+    /* identity guard: an aborted stale request must not clobber the live one */
+    if(fetchCtrl === myCtrl){
+      fetching = false;
+      nextSync = Date.now() + POLL_MS;
+      syncPending = false;
+    }
+  }
+}
+function setStatus(s){
+  const d=$('liveDot'), t=$('liveTxt');
+  d.className = s==='ok'?'ok':s==='sync'?'sync':s==='err'?'err':'';
+  t.textContent = s==='ok'?'LIVE':s==='sync'?'SYNC':s==='err'?'DOWN':'BOOT';
+}
+function switchState(code, silent, fly){
+  STATE = code;
+  localStorage.setItem('wxstate', STATE);
+  $('stateInput').value = STATE;
+  $('chipAll').textContent = 'ALL ' + STATE;
+  if(testAlert){ clearTimeout(testTimer); testAlert = null; $('btnTest').classList.remove('testing'); $('testTxt').textContent='TEST'; }
+  alerts = new Map();
+  threatSet.clear(); selectedId = null; expanded.clear();
+  polyKey = ''; polyIndex = {};
+  geoVersion++; syncPending = true;
+  renderFeed();
+  log(`FEED SWITCHED TO ${STATE}${silent?' · QUIET':''}`);
+  fetchAlerts(silent);
+  loadSirensForState(code, !!fly);
+}
+
+/* ---------- evaluation ---------- */
+function evaluate(){
+  const now = Date.now();
+  const active = [...alerts.values()].filter(a => a.test || !a.expires || new Date(a.expires).getTime() > now);
+  const gs = activeGeoms(active);
+  for(const s of sirens){
+    let status='idle', insideEv=null, nearest=null;
+    /* nearest only matters within 40 mi, so pre-reject on the bbox first */
+    let near = false;
+    for(const it of gs){ if(nearBBox(it.bb, s.lat, s.lng)){ near = true; break; } }
+    if(!near){ s.status='idle'; s.insideEv=null; s.nearest=null; continue; }
+    for(const it of gs){
+      if(!nearBBox(it.bb, s.lat, s.lng)) continue;
+      const a = it.a;
+      const d = distPointGeom([s.lng, s.lat], it.g);
+      if(!d) continue;
+      if(d.inside){
+        if(a.level==='activate'){ status='alert'; insideEv=a; }
+        else if(status==='idle' && a.level==='watch'){ status='watch'; insideEv=a; }
+      }else if(a.level==='activate' && (!nearest || d.mi < nearest.mi)){
+        nearest = {mi:d.mi, dir:d.dir};
+      }
+    }
+    s.status=status; s.insideEv=insideEv; s.nearest=nearest;
+  }
+  return active;
+}
+function visibleAlerts(){
+  if(_nearCache.v === geoVersion && _nearCache.mode === feedMode) return _nearCache.list;
+  const arr = [...alerts.values()];
+  let list;
+  if(feedMode === 'all') list = arr;
+  else{
+    const wpt = watch ? [watch.lng, watch.lat] : null;
+    list = arr.filter(a=>{
+      if(a.test) return true;
+      if(!a.geoms.length) return false;
+      const nearS = sirens.some(s => a.geoms.some(g=>{
+        const bb = geomBBox(g);
+        if(!bb || !nearBBox(bb, s.lat, s.lng)) return false;
+        const d = distPointGeom([s.lng,s.lat], g); return d && (d.inside || d.mi < 40);
+      }));
+      if(nearS) return true;
+      return !!(wpt && a.geoms.some(g=>{
+        const bb = geomBBox(g);
+        if(!bb || !nearBBox(bb, watch.lat, watch.lng)) return false;
+        const d = distPointGeom(wpt, g); return d && (d.inside || d.mi < 40);
+      }));
+    });
+  }
+  _nearCache = {v:geoVersion, mode:feedMode, list};
+  return list;
+}
+function wdist(a){ /* distance from watch point, cached per geoVersion */
+  if(!watch) return null;
+  if(a._wd && a._wd.v === geoVersion) return a._wd.d;
+  let best = null;
+  const wpt = [watch.lng, watch.lat];
+  /* no bbox rejection here: the feed shows distance to alerts that are far
+     away too, and this runs once per visible alert, not once per siren */
+  for(const g of a.geoms){
+    const r = distPointGeom(wpt, g);
+    if(!r) continue;
+    if(r.inside){ best = {inside:true, mi:0}; break; }
+    if(!best || r.mi < best.mi) best = r;
+  }
+  a._wd = {v:geoVersion, d:best};
+  return best;
+}
+function boundsOf(a){
+  if(!a._bounds && a.geoms.length)
+    a._bounds = L.geoJSON({type:'FeatureCollection', features:a.geoms.map(g=>({type:'Feature',properties:{},geometry:g}))}).getBounds();
+  return a._bounds;
+}
+
+/* ---------- rendering ---------- */
+function styleOpts(a){
+  const dash = /watch/i.test(a.event) ? '7 5' : (/advisory|statement/i.test(a.event) ? '2 5' : undefined);
+  return {
+    color:a.color, weight:a.level==='activate'?2:1.5, opacity:.9,
+    fillColor:a.color, fillOpacity:a.level==='activate'?.13:.07, dashArray:dash,
+    className:'apoly' + (a.level==='activate'?' ants':'') + (a.test?' poly-test':'') + (a.id===selectedId?' selected':''),
+    bubblingMouseEvents:false
+  };
+}
+function renderPolys(){
+  const vis = visibleAlerts().filter(a=>a.geoms.length);
+  const key = vis.map(a=>a.id+(a.id===selectedId?'*':'')).join('|') + '#' + feedMode;
+  if(key === polyKey) return;   // skip rebuild when nothing changed
+  polyKey = key;
+  polyIndex = {};
+  alertLayer.clearLayers();
+  for(const a of vis){
+    polyIndex[a.id] = [];
+    for(const g of a.geoms){
+      const ly = L.geoJSON(g, styleOpts(a))
+        .bindTooltip(a.event + (a.test?' · TEST':''), {sticky:true, className:'poly-tip', opacity:.95})
+        .on('click', ()=>{
+          selectAlert(a.id, {fly:true});
+          const card = feedList.querySelector(`[data-id="${CSS.escape(a.id)}"]`);
+          card && card.scrollIntoView({block:'nearest', behavior:'smooth'});
+        }).addTo(alertLayer);
+      polyIndex[a.id].push(ly);
+    }
+  }
+}
+function renderFeed(){
+  const vis = visibleAlerts();
+  expanded = new Set([...expanded].filter(id => vis.some(a=>a.id===id)));
+  vis.sort((a,b)=>{
+    const r = a.test?-1:a.level==='activate'?0:a.level==='watch'?1:2;
+    const r2 = b.test?-1:b.level==='activate'?0:b.level==='watch'?1:2;
+    return r-r2 || new Date(a.expires||9e15) - new Date(b.expires||9e15);
+  });
+  $('alertCount').textContent = vis.length;
+  document.title = vis.length ? `WXALERT · ${vis.length} ACTIVE` : 'WXALERT · SIREN NET';
+  if(!vis.length){
+    feedList.innerHTML = `<div class="quiet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9 8 21M12 9l4 12M9.5 15h5"/><circle cx="12" cy="7" r="1.6"/><path d="M7.5 3.5a6.4 6.4 0 0 0 0 7M16.5 3.5a6.4 6.4 0 0 1 0 7"/></svg><div class="q-t">ALL QUIET</div><div class="q-s">${syncPending?'SYNCING FEED FOR '+STATE:'NO ACTIVE ALERTS FOR '+STATE}</div></div>`;
+    return;
+  }
+  feedList.innerHTML = vis.map(a=>{
+    const polyBit = a.geoms.length ? `POLYGON${a.geoms.length>1?' ×'+a.geoms.length:''}` : 'ZONE-BASED';
+    const meta = `ENDS <span class="js-ends" data-exp="${a.expires||''}">${endsTxt(a.expires)}</span> · ${polyBit} · ${a.areaDesc.split(';').length} AREA(S)`;
+    const tags = a.tags.map(t=>`<span class="ac-tag">${esc(t)}</span>`).join('');
+    const isNew = a.isNew ? '<span class="ac-new">NEW</span>' : '';
+    const wd = wdist(a);
+    const dist = wd ? (wd.inside ? '<span class="ac-dist over">ON TOP</span>' : `<span class="ac-dist">${wd.mi.toFixed(0)} MI</span>`) : '';
+    return `<article class="alert-card${a.id===selectedId?' selected':''}${expanded.has(a.id)?' expanded':''}" data-id="${esc(a.id)}" tabindex="0" style="--c:${a.color}">
+      <span class="spine"></span>
+      <div class="ac-top"><span class="ac-ev">${esc(a.event)}</span>${isNew}${tags}${dist}</div>
+      <div class="ac-meta">${meta}</div>
+      <div class="ac-area" title="${esc(a.areaDesc)}">${esc(a.areaDesc)}</div>
+      <div class="ac-body">${a.headline?esc(a.headline)+'\n\n':''}${esc(a.description)}${a.instruction?`\n\n<span class="il">PRECAUTIONARY / PREPAREDNESS ACTIONS</span>${esc(a.instruction)}`:''}</div>
+    </article>`;
+  }).join('');
+}
+/* ---------- siren list: chunked / virtualised ----------
+   Rendering 5,700 rows in one innerHTML string blocked the main thread for
+   ~1s on big states. We render a first chunk, then append more as you
+   scroll — nothing is lost, it just isn't all in the DOM at once. */
+const SIREN_CHUNK = 120;
+let sirenSorted = [], sirenShown = 0;
+const sirenFoot = $('sirenFoot');
+
+function sirenSubText(s){
+  if(s.insideEv) return `INSIDE — ${s.insideEv.event.toUpperCase()}`;
+  if(s.nearest && s.nearest.mi < 40) return `NEAREST THREAT ${s.nearest.mi.toFixed(1)} MI ${s.nearest.dir}`;
+  return 'STANDBY · NET CLEAR';
+}
+function sirenRowHTML(s){
+  return `<button class="siren-row st-${s.status}" data-id="${esc(s.id)}">
+    <span class="lamp"></span>
+    <div class="sr-body">
+      <div class="sr-top"><span class="sr-name">${esc(s.name)}</span><span class="sr-no">${esc(s.id)}</span></div>
+      <div class="sr-sub">${sirenSubText(s)}</div>
+    </div>
+  </button>`;
+}
+/* ---------- siren hover tip (the "cool" floating card) ---------- */
+const sirenTip = $('sirenTip');
+function fmtCoord(v, hemi){ return `${Math.abs(v).toFixed(5)}°${hemi}`; }
+function showSirenTip(s, xy){
+  sirenTip.className = 'st-' + s.status;            /* drives lamp + sub colour */
+  $('stName').textContent = s.name;
+  $('stId').textContent = s.id;
+  $('stLat').textContent = fmtCoord(s.lat, s.lat >= 0 ? 'N' : 'S');
+  $('stLng').textContent = fmtCoord(s.lng, s.lng >= 0 ? 'E' : 'W');
+  $('stSub').textContent = sirenSubText(s);
+  sirenTip.classList.add('in');
+  const pad = 16, w = sirenTip.offsetWidth, h = sirenTip.offsetHeight;
+  let x = xy.x + pad, y = xy.y + pad;
+  if(x + w > window.innerWidth  - 10) x = xy.x - w - pad;
+  if(y + h > window.innerHeight - 10) y = xy.y - h - pad;
+  sirenTip.style.left = Math.max(10, x) + 'px';
+  sirenTip.style.top  = Math.max(10, y) + 'px';
+}
+function hideSirenTip(){ sirenTip.classList.remove('in'); }
+function appendSirenRows(){
+  if(sirenShown >= sirenSorted.length) return false;
+  const end = Math.min(sirenShown + SIREN_CHUNK, sirenSorted.length);
+  let html = '';
+  for(let i = sirenShown; i < end; i++) html += sirenRowHTML(sirenSorted[i]);
+  sirenList.insertAdjacentHTML('beforeend', html);
+  sirenShown = end;
+  updateSirenFoot();
+  return true;
+}
+function updateSirenFoot(){
+  if(!sirenSorted.length){ sirenFoot.classList.add('hidden'); return; }
+  sirenFoot.classList.toggle('hidden', sirenShown >= sirenSorted.length);
+  sirenFoot.textContent = sirenShown < sirenSorted.length
+    ? `SHOWING ${sirenShown} OF ${sirenSorted.length} — SCROLL FOR MORE`
+    : `${sirenSorted.length} SITE(S)`;
+}
+/* make sure the row for a given siren id exists in the DOM, then return it */
+function ensureSirenRow(id){
+  let i = sirenSorted.findIndex(s => s.id === id);
+  if(i < 0) return null;
+  let guard = 0;
+  while(sirenShown <= i && sirenShown < sirenSorted.length && guard++ < 400) appendSirenRows();
+  return sirenList.querySelector(`.siren-row[data-id="${CSS.escape(id)}"]`);
+}
+sirenList.addEventListener('scroll', ()=>{
+  if(sirenList.scrollTop + sirenList.clientHeight > sirenList.scrollHeight - 500) appendSirenRows();
+}, {passive:true});
+
+function renderSirens(){
+  if(!sirens.length){
+    sirenSorted = []; sirenShown = 0;
+    sirenList.innerHTML = `<div class="quiet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9 8 21M12 9l4 12M9.5 15h5"/><circle cx="12" cy="7" r="1.6"/><path d="M7.5 3.5a6.4 6.4 0 0 0 0 7M16.5 3.5a6.4 6.4 0 0 1 0 7"/></svg>
+      <div class="q-t" style="color:var(--faint)">NO SIRENS FOR THIS STATE</div>
+      <div class="q-s">NO CURATED SIREN DATA FOR ${STATE}.<br>ADD KNOWN SIRENS VIA THE SITES MANAGER —<br>THEY STAY SAVED FOR THIS STATE.</div></div>`;
+    sirenFoot.classList.add('hidden');
+    sirenCanvas.rebuild();
+    return;
+  }
+  const order = {alert:0, watch:1, idle:2};
+  /* plain < > instead of localeCompare — ids are ASCII and this sort runs on
+     every refresh; localeCompare was ~40% slower for no benefit.
+     Don't read scrollHeight in a loop either: that forces a synchronous
+     layout on every iteration. One chunk fills any realistic panel. */
+  sirenSorted = [...sirens].sort((a,b)=>order[a.status]-order[b.status] || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  sirenShown = 0;
+  sirenList.innerHTML = '';
+  appendSirenRows();
+  sirenCanvas.rebuild();   /* repaint markers with the new statuses */
+}
+function renderLegend(){
+  const vis = visibleAlerts();
+  const threatened = sirens.filter(s=>s.status==='alert').length;
+  const watches = sirens.filter(s=>s.status==='watch').length;
+  const net = $('lgNet');
+  net.className = 'lg-net' + (!threatened && !watches ? ' ok' : '');
+  net.innerHTML = threatened ? `NET · <b>${threatened} SITE(S) ALERT</b>`
+    : watches ? `NET · ${watches} WATCHED` : 'NET · ALL QUIET';
+  const byEvent = new Map();
+  for(const a of vis) byEvent.set(a.event, (byEvent.get(a.event)||0)+1);
+  $('lgItems').innerHTML = vis.length
+    ? [...byEvent].map(([ev,n])=>
+        `<span class="lg-i" style="margin-left:14px"><i style="background:${EV_COLORS[ev]||'#98A6AD'}"></i>${esc(ev.toUpperCase())} ×${n}</span>`).join('')
+    : `<span class="lg-i" style="margin-left:14px"><i style="background:var(--green)"></i>${STATE} FEED CLEAR</span>`;
+  $('legend').classList.remove('hidden');
+}
+function renderWatchStrip(){
+  const s = $('watchStrip');
+  if(!watch){ s.classList.add('hidden'); return; }
+  s.classList.remove('hidden');
+  const pre = [(watch.city||watch.label.split(',')[0]||'WATCH PT').toUpperCase(), watch.state, watch.cwa?('NWS '+watch.cwa):null].filter(Boolean);
+  const last = hereCount ? `${hereCount} ALERT${hereCount>1?'S':''} HERE` : 'CLEAR HERE';
+  $('wsTxt').innerHTML = `${esc(pre.join(' · '))}${pre.length?' · ':''}<b class="${hereCount?'hot':''}">${esc(last)}</b>`;
+}
+function updateBanner(){
+  const threatened = sirens.filter(s=>s.status==='alert');
+  if(!threatened.length){ banner.classList.add('hidden'); return; }
+  banner.classList.remove('hidden');
+  const isTest = threatened.some(s=>s.insideEv && s.insideEv.test);
+  $('bTitle').textContent = isTest ? 'TEST ACTIVATION' : 'SIREN ACTIVATION';
+  banner.classList.toggle('testb', isTest);
+  const evs = [...new Set(threatened.map(s=>s.insideEv && s.insideEv.event).filter(Boolean))].join(' + ');
+  $('bSub').textContent = `${threatened.length} SITE(S) INSIDE — ${evs.toUpperCase()}${armed?'':' · AUDIO MUTED'}`;
+  banner.classList.toggle('live', !acked);
+  banner.classList.toggle('acked', acked);
+}
+function refreshUI(){
+  const active = evaluate();
+  hereCount = 0;
+  if(watch){
+    const wpt = [watch.lng, watch.lat];
+    for(const a of active){
+      if(!a.geoms.length) continue;
+      for(const g of a.geoms){
+        const bb = geomBBox(g);
+        if(bb && !nearBBox(bb, watch.lat, watch.lng)) continue;   /* can't be inside */
+        const r = distPointGeom(wpt, g);
+        if(r && r.inside){ hereCount++; break; }
+      }
+    }
+  }
+  const threatened = sirens.filter(s=>s.status==='alert');
+  const newThreat = threatened.some(s=>!threatSet.has(s.id));
+  threatSet = new Set(threatened.map(s=>s.id));
+  sirenCanvas.setAlertN(threatened.length);   /* tells the canvas whether to animate */
+  if(threatened.length){
+    if(newThreat){
+      acked = false;
+      const evs = [...new Set(threatened.map(s=>s.insideEv && s.insideEv.event).filter(Boolean))].join(' + ');
+      log(`SIREN ACTIVATION — ${threatened.length} SITE(S) · ${evs}`, 'err');
+      toast(`SIREN ACTIVATION — ${threatened.length} SITE(S) INSIDE ${evs.toUpperCase()}`, 'warn', 6000);
+      SirenAudio.chirp();
+    }
+    if(armed && !acked) SirenAudio.start(); else SirenAudio.stop();
+  }else{
+    SirenAudio.stop();
+    acked = false;
+  }
+  renderPolys(); renderFeed(); renderSirens(); renderLegend(); renderWatchStrip(); updateBanner();
+}
+
+/* ---------- selection ---------- */
+function selectAlert(id, opts={}){
+  const changed = selectedId !== id;
+  selectedId = id;
+  feedList.querySelectorAll('.alert-card').forEach(c => c.classList.toggle('selected', c.dataset.id === id));
+  for(const [aid, layers] of Object.entries(polyIndex))
+    layers.forEach(l => l._path && l._path.classList.toggle('selected', aid === id));
+  if(opts.fly && changed){
+    const a = alerts.get(id);
+    const b = a && boundsOf(a);
+    if(b){
+      const wide = map.getContainer().clientWidth > 1080;
+      map.flyToBounds(b.pad(.12), wide
+        ? {paddingTopLeft:[350,90], paddingBottomRight:[390,90], duration:.8}
+        : {paddingTopLeft:[20,80], paddingBottomRight:[20,80], duration:.8});
+    }
+  }
+}
+
+/* ---------- test mode ---------- */
+function makeTestRing(cx, cy, r){
+  let sd = 7;
+  const rnd = () => (sd = (sd*9301+49297) % 233280) / 233280;
+  const pts = [];
+  for(let i=0;i<14;i++){
+    const a = i/14*2*Math.PI, rr = r*(.75+.5*rnd());
+    pts.push([cx + rr*Math.cos(a)*1.25, cy + rr*Math.sin(a)]);
+  }
+  pts.push(pts[0]);
+  return pts;
+}
+function runTest(){
+  if(testAlert){ clearTest(); return; }
+  let cx, cy;
+  if(sirens.length){
+    const c = sirens.slice(0,3);
+    cx = c.reduce((t,s)=>t+s.lng,0)/c.length;
+    cy = c.reduce((t,s)=>t+s.lat,0)/c.length;
+  }else if(watch){ cx = watch.lng; cy = watch.lat; }
+  else { const c = map.getCenter(); cx = c.lng; cy = c.lat; }
+  testAlert = {
+    id:'TEST-'+Date.now(), event:'Tornado Warning', severity:'Extreme',
+    areaDesc:'SIREN NET TEST AREA', headline:'TEST OF THE SIREN NET — NO ACTUAL THREAT',
+    expires:new Date(Date.now()+60000).toISOString(), sent:new Date().toISOString(),
+    description:'TEST ACTIVATION EXERCISE. Generated locally to verify the net end-to-end: polygon rendering, point-in-polygon hits, banner, audio and event log. No meteorological threat exists.',
+    instruction:'Press END TEST (or the TEST button) to clear the exercise.',
+    zones:[], geoms:[{type:'Polygon', coordinates:[makeTestRing(cx, cy, .055)]}],
+    color:'#FF4B3E', level:'activate', tags:['TEST'], test:true, isNew:true, _bounds:null, _wd:null
+  };
+  alerts.set(testAlert.id, testAlert);
+  clearTimeout(testTimer);
+  testTimer = setTimeout(clearTest, 60000);
+  $('btnTest').classList.add('testing');
+  $('testTxt').textContent = 'END TEST';
+  log('TEST ACTIVATION STARTED — 60S', 'warn');
+  toast('TEST ACTIVATION RUNNING', 'warn');
+  refreshUI();
+}
+function clearTest(){
+  if(!testAlert) return;
+  clearTimeout(testTimer);
+  alerts.delete(testAlert.id);
+  if(selectedId === testAlert.id) selectedId = null;
+  testAlert = null;
+  $('btnTest').classList.remove('testing');
+  $('testTxt').textContent = 'TEST';
+  log('TEST CLEARED', 'ok');
+  refreshUI();
+}
+
+/* ---------- site manager ---------- */
+let stage = [], picking = false;
+const modalWrap = $('modalWrap'), siteRows = $('siteRows');
+function nextId(){
+  let n = 1;
+  const used = new Set(stage.map(s=>s.id));
+  while(used.has('S'+pad(n))) n++;
+  return 'S'+pad(n);
+}
+function openModal(){
+  stage = loadUserSites(STATE).map(s=>({...s}));   /* edit only YOUR added sites, not the curated set */
+  picking = false; $('map').classList.remove('pick');
+  $('btnPick').classList.remove('active');
+  renderRows();
+  modalWrap.classList.remove('hidden');
+}
+function closeModal(){
+  if(picking){ cancelPick(); return; }
+  modalWrap.classList.add('hidden');
+}
+function renderRows(){
+  siteRows.innerHTML = stage.map((s,i)=>`
+    <div class="site-row">
+      <div class="s-info">
+        <div class="s-name">${esc(s.name)}<span class="s-id">${esc(s.id)}</span></div>
+        <div class="s-geo">${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}</div>
+      </div>
+      <button class="s-edit" data-act="edit" data-i="${i}">EDIT</button>
+      <button class="s-del" data-act="del" data-i="${i}" title="Remove">✕</button>
+    </div>`).join('');
+}
+siteRows.addEventListener('click', e=>{
+  const b = e.target.closest('button[data-act]');
+  if(!b) return;
+  const i = +b.dataset.i;
+  if(b.dataset.act === 'del'){
+    stage.splice(i,1); renderRows();
+  }else{
+    const s = stage.splice(i,1)[0];
+    $('fId').value = s.id; $('fName').value = s.name;
+    $('fLat').value = s.lat.toFixed(5); $('fLng').value = s.lng.toFixed(5);
+    renderRows();
+    $('fLat').focus();
+  }
+});
+ $('btnAddSite').addEventListener('click', ()=>{
+  const lat = parseFloat($('fLat').value), lng = parseFloat($('fLng').value);
+  if(!isFinite(lat) || !isFinite(lng) || Math.abs(lat)>90 || Math.abs(lng)>180){
+    toast('INVALID LAT/LNG — LAT ±90, LNG ±180', 'warn'); return;
+  }
+  let id = $('fId').value.trim().toUpperCase();
+  if(!id) id = nextId();
+  if(stage.some(s=>s.id===id)){ toast(`ID ${id} ALREADY IN LIST`, 'warn'); return; }
+  const name = $('fName').value.trim().toUpperCase() || ('SITE '+id);
+  stage.push({id, name, lat, lng});
+  $('fId').value=''; $('fName').value=''; $('fLat').value=''; $('fLng').value='';
+  renderRows();
+  toast(`${id} STAGED — PRESS SAVE & CLOSE`, 'ok');
+  log(`SITE STAGED · ${id} ${name}`);
+});
+function startPick(){
+  picking = true;
+  hideSirenTip();                                  /* clear any pinned hover card */
+  modalWrap.classList.add('hidden');
+  $('map').classList.add('pick');
+  $('btnPick').classList.add('active');
+  toast('CLICK THE MAP TO DROP COORDINATES · ESC TO CANCEL', 'warn', 12000);
+}
+function cancelPick(){
+  picking = false;
+  $('map').classList.remove('pick');
+  $('btnPick').classList.remove('active');
+  modalWrap.classList.remove('hidden');
+}
+ $('btnPick').addEventListener('click', ()=> picking ? cancelPick() : startPick());
+ $('btnSaveSites').addEventListener('click', ()=>{
+  saveUserSites(STATE, stage.map(s=>({...s})));
+  loadSirensForState(STATE, false);
+  modalWrap.classList.add('hidden');
+  log(`USER SITES SAVED — ${stage.length} FOR ${STATE}`, 'ok');
+  toast('USER SITES SAVED', 'ok');
+});
+ $('btnResetSites').addEventListener('click', ()=>{
+  stage = [];
+  renderRows();
+  toast('USER SITES CLEARED — PRESS SAVE & CLOSE', 'ok');
+});
+ $('btnSites').addEventListener('click', ()=>{
+  if(!modalWrap.classList.contains('hidden')){ closeModal(); return; }
+  openModal();
+});
+ $('btnModalX').addEventListener('click', closeModal);
+modalWrap.addEventListener('click', e=>{ if(e.target === modalWrap) closeModal(); });
+
+/* ---------- OSM siren scan (Overpass; crowdsourced, best-effort) ---------- */
+async function overpass(q){
+  const eps = ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+  let lastErr;
+  for(const ep of eps){
+    try{
+      const r = await fetchT(ep, 30000, {method:'POST', body:'data='+encodeURIComponent(q)});
+      if(r.ok) return await r.json();
+      lastErr = new Error('HTTP '+r.status);
+    }catch(e){ lastErr = e; }
+  }
+  throw lastErr || new Error('overpass failed');
+}
+async function scanOsm(){
+  const btn = $('btnScan');
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = 'SCANNING…';
+  try{
+    const b = map.getBounds().pad(.05);
+    const q = `[out:json][timeout:25];(node["emergency"="siren"](${b.getSouth().toFixed(4)},${b.getWest().toFixed(4)},${b.getNorth().toFixed(4)},${b.getEast().toFixed(4)});way["emergency"="siren"](${b.getSouth().toFixed(4)},${b.getWest().toFixed(4)},${b.getNorth().toFixed(4)},${b.getEast().toFixed(4)}););out center 250;`;
+    const j = await overpass(q);
+    const els = (j.elements||[]).filter(el=>el && (isFinite(el.lat) || (el.center && isFinite(el.center.lat))));
+    let added = 0;
+    for(const el of els){
+      if(stage.length >= 250){ toast('STAGE CAP (250) REACHED — SAVE & RE-SCAN FOR MORE', 'warn'); break; }
+      const lat = el.lat ?? el.center.lat, lng = el.lon ?? el.center.lon;
+      if(!isFinite(lat) || !isFinite(lng)) continue;
+      if(stage.some(s=>Math.abs(s.lat-lat)<5e-4 && Math.abs(s.lng-lng)<5e-4)) continue;
+      const t = el.tags || {};
+      const name = (t.name || t.ref || ('OSM '+(el.id % 10000))).toUpperCase().slice(0,40);
+      stage.push({id:nextId(), name, lat, lng});
+      added++;
+    }
+    renderRows();
+    if(added){ toast(`${added} OSM SIREN(S) STAGED — REVIEW, DELETE JUNK, SAVE`, 'ok', 7000); log(`OSM SCAN · ${added} FOUND IN VIEW`, 'ok'); }
+    else{ toast('NO OSM SIRENS IN THIS VIEW — ZOOM OUT OR ENTER MANUALLY', 'warn', 6000); log('OSM SCAN · 0 RESULTS'); }
+  }catch(e){
+    toast('OSM SCAN FAILED — OVERPASS UNREACHABLE', 'warn');
+    log('OSM SCAN FAILED', 'err');
+  }finally{
+    btn.disabled = false;
+    btn.textContent = old;
+  }
+}
+ $('btnScan').addEventListener('click', scanOsm);
+
+/* ---------- radar (RainViewer loop, IEM fallback) ---------- */
+let radarOn = localStorage.getItem('wxradar') !== '0';   /* on by default, remembers opt-out */
+let radarFrames = [], radarIx = -1, radarPlaying = true, radarTimer = null;
+let radarFallback = null, curFrameLayer = null, pastLen = 0, radarAttr = false;
+const radarLayers = new Map();
+function radarAttrAdd(txt){
+  if(radarAttr) return;
+  radarAttr = true;
+  map.attributionControl.addAttribution(txt);
+}
+function frameLayer(f){
+  if(radarLayers.has(f.path)) return radarLayers.get(f.path);
+  /* RainViewer free tiles support zoom 0-7 ONLY — higher native zooms return a
+     "Zoom Level Not Supported" placeholder; Leaflet upscales z7 above that. */
+  const l = L.tileLayer(`https://tilecache.rainviewer.com${f.path}/256/{z}/{x}/{y}/6/1_1.png`,
+    {pane:'radar', opacity:0, maxNativeZoom:7, maxZoom:19, attribution:''});
+  radarLayers.set(f.path, l);
+  return l;
+}
+function showFrame(ix){
+  if(!radarFrames.length) return;
+  radarIx = ((ix % radarFrames.length) + radarFrames.length) % radarFrames.length;
+  const f = radarFrames[radarIx];
+  const l = frameLayer(f);
+  if(!map.hasLayer(l)) l.addTo(map);
+  l.setOpacity(.78);
+  if(curFrameLayer && curFrameLayer !== l) curFrameLayer.setOpacity(0);
+  curFrameLayer = l;
+  const isNow = radarIx >= pastLen;
+  $('radarTime').textContent = hhmm(new Date(f.ts*1000)) + (isNow ? '+' : '');
+}
+function playIc(){
+  $('btnPlay').innerHTML = radarPlaying
+    ? '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5Z"/></svg>';
+}
+function startLoop(){
+  if(radarTimer) return;
+  radarTimer = setInterval(()=>{
+    if(document.hidden || !radarOn || radarFallback) return;
+    if(radarPlaying && radarFrames.length > 1) showFrame(radarIx + 1);
+  }, 500);
+}
+async function loadRadarMeta(){
+  try{
+    const r = await fetchT('https://api.rainviewer.com/public/weather-maps.json', 10000);
+    if(!r.ok) throw 0;
+    const j = await r.json();
+    const past = (j.radar && j.radar.past) || [];
+    const now = (j.radar && j.radar.nowcast) || [];
+    if(!past.length) throw 0;
+    if(radarFallback){ map.removeLayer(radarFallback); radarFallback = null; }
+    pastLen = past.length;
+    radarFrames = [...past, ...now].map(f=>({ts:f.time, path:f.path}));
+    $('btnPlay').classList.remove('hidden');
+    $('radarTime').classList.remove('hidden');
+    playIc();
+    showFrame(radarIx < 0 ? pastLen - 1 : Math.min(radarIx, radarFrames.length-1));
+    radarAttrAdd(' · Radar © RainViewer');
+  }catch(e){
+    if(!radarFallback){
+      radarFallback = L.tileLayer('https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png',
+        {pane:'radar', opacity:.72, maxNativeZoom:7, maxZoom:19, attribution:''}).addTo(map);
+      radarLayers.forEach(l=>{ if(map.hasLayer(l)) l.setOpacity(0); });
+      curFrameLayer = null;
+      $('radarTime').classList.remove('hidden');
+      $('radarTime').textContent = 'N0Q';
+      $('btnPlay').classList.add('hidden');
+      radarAttrAdd(' · Radar © IEM');
+      toast('RADAR LOOP UNAVAILABLE — SINGLE-FRAME NEXRAD (IEM)', 'warn');
+    }
+  }
+}
+function setRadar(on){
+  radarOn = on;
+  localStorage.setItem('wxradar', on ? '1' : '0');
+  $('btnRadar').classList.toggle('on', on);
+  $('refl').classList.toggle('hidden', !on);
+  if(on){
+    if(radarFallback) radarFallback.addTo(map);
+    else if(radarFrames.length) showFrame(radarIx < 0 ? pastLen-1 : radarIx);
+    else loadRadarMeta();
+    startLoop();
+  }else{
+    radarLayers.forEach(l=>{ if(map.hasLayer(l)) l.setOpacity(0); });
+    if(radarFallback && map.hasLayer(radarFallback)) map.removeLayer(radarFallback);
+    $('radarTime').textContent = '--:--';
+  }
+}
+ $('btnRadar').addEventListener('click', ()=>setRadar(!radarOn));
+ $('btnPlay').addEventListener('click', ()=>{ radarPlaying = !radarPlaying; playIc(); });
+ $('radarTime').addEventListener('click', ()=>{ radarPlaying = false; playIc(); showFrame(radarIx + 1); });
+setInterval(()=>{ if(radarOn && !document.hidden && !radarFallback) loadRadarMeta(); }, 6*60*1000);
+
+/* ---------- tile themes ---------- */
+let themeIx = Math.min(+(localStorage.getItem('wxtile')||0), TILE_THEMES.length-1) || 0;
+function applyTheme(){
+  const t = TILE_THEMES[themeIx];
+  const pane = document.querySelector('.leaflet-tile-pane');
+  if(pane) pane.style.filter = t.filter;
+  $('tileTxt').textContent = t.name;
+}
+ $('btnTiles').addEventListener('click', ()=>{
+  themeIx = (themeIx + 1) % TILE_THEMES.length;
+  localStorage.setItem('wxtile', themeIx);
+  applyTheme();
+  log('TILE THEME · ' + TILE_THEMES[themeIx].name);
+});
+
+/* ---------- clock / tick ---------- */
+function tick(){
+  const d = new Date();
+  $('clock').textContent = hhmmss(d);
+  $('clockSub').textContent = `${pad(d.getDate())} ${MONTHS[d.getMonth()]} · ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}Z`;
+  const rem = Math.max(0, Math.ceil((nextSync - Date.now())/1000));
+  $('syncT').textContent = fetching ? 'SYNC' : 'T-' + pad(Math.min(rem,99)) + 'S';
+  document.querySelectorAll('.js-ends').forEach(n=>{
+    const t = endsTxt(n.dataset.exp);
+    n.textContent = t;
+    n.classList.toggle('ending', t==='ENDING' || /^0:/.test(t));
+  });
+  if(testAlert && Date.now() > new Date(testAlert.expires).getTime()) clearTest();
+}
+setInterval(tick, 1000);
+setInterval(fetchAlerts, POLL_MS);
+
+/* ---------- wiring ---------- */
+feedList.addEventListener('click', e=>{
+  const c = e.target.closest('.alert-card');
+  if(!c) return;
+  expanded.has(c.dataset.id) ? expanded.delete(c.dataset.id) : expanded.add(c.dataset.id);
+  c.classList.toggle('expanded');
+  selectAlert(c.dataset.id, {fly:true});
+});
+feedList.addEventListener('keydown', e=>{
+  if(e.key === 'Enter' && e.target.classList.contains('alert-card')) e.target.click();
+});
+sirenList.addEventListener('click', e=>{
+  const r = e.target.closest('.siren-row');
+  if(!r) return;
+  const s = sirens.find(x=>x.id === r.dataset.id);
+  if(s) map.flyTo([s.lat,s.lng], 13, {duration:.7});
+});
+sirenList.addEventListener('mouseover', e=>{
+  const r = e.target.closest('.siren-row');
+  sirenCanvas.setHover(r ? r.dataset.id : null);
+});
+sirenList.addEventListener('mouseleave', ()=> sirenCanvas.setHover(null));
+
+/* hover / click on the canvas: hit-test the cached screen-space points */
+let hoverRaf = 0, hoverPt = null, hoverXY = null;
+map.on('mousemove', e=>{
+  if(picking || hoverRaf) return;
+  if(map.dragging && map.dragging.moving()) return;
+  hoverPt = e.layerPoint;
+  hoverXY = {x: e.originalEvent.clientX, y: e.originalEvent.clientY};
+  hoverRaf = requestAnimationFrame(()=>{
+    hoverRaf = 0;
+    const hit = sirenCanvas.hit(hoverPt, 10);
+    sirenCanvas.setHover(hit ? hit.id : null);
+    map.getContainer().style.cursor = hit ? 'pointer' : '';
+    hit ? showSirenTip(hit, hoverXY) : hideSirenTip();
+  });
+});
+map.on('mouseout', ()=>{ sirenCanvas.setHover(null); map.getContainer().style.cursor = ''; hideSirenTip(); });
+/* hide the tip while the map is panning/zooming so it doesn't trail behind */
+map.on('movestart zoomstart', hideSirenTip);
+
+map.on('click', e=>{
+  if(!picking){
+    const hit = sirenCanvas.hit(e.layerPoint, 10);
+    if(hit){
+      map.flyTo([hit.lat, hit.lng], 13, {duration:.7});
+      const row = ensureSirenRow(hit.id);
+      row && row.scrollIntoView({block:'nearest', behavior:'smooth'});
+      return;
+    }
+  }
+  if(picking){
+    $('fLat').value = e.latlng.lat.toFixed(5);
+    $('fLng').value = e.latlng.lng.toFixed(5);
+    picking = false;
+    $('map').classList.remove('pick');
+    $('btnPick').classList.remove('active');
+    modalWrap.classList.remove('hidden');
+    toast('COORDINATES DROPPED INTO FORM', 'ok');
+    return;
+  }
+  selectedId = null;
+  feedList.querySelectorAll('.alert-card.selected').forEach(c=>c.classList.remove('selected'));
+  Object.values(polyIndex).flat().forEach(l=>l._path && l._path.classList.remove('selected'));
+});
+ $('btnSync').addEventListener('click', ()=>{
+  $('btnSync').classList.add('spin');
+  setTimeout(()=>$('btnSync').classList.remove('spin'), 800);
+  fetchAlerts();
+});
+ $('btnTest').addEventListener('click', runTest);
+ $('btnAck').addEventListener('click', ()=>{ acked = true; SirenAudio.stop(); log('ACTIVATION ACKNOWLEDGED','warn'); refreshUI(); });
+ $('btnSilence').addEventListener('click', ()=>{ acked = true; SirenAudio.stop(); log('AUDIO SILENCED'); refreshUI(); });
+ $('wsClear').addEventListener('click', clearWatch);
+function setAudioIc(){
+  $('audioIc').innerHTML = armed
+    ? '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6.5 8.5H3v7h3.5L11 19V5Z"/><path d="M15.5 8.8a4.5 4.5 0 0 1 0 6.4M18.3 6a8.5 8.5 0 0 1 0 12"/></svg>'
+    : '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6.5 8.5H3v7h3.5L11 19V5Z"/><path d="M16 9.5 21 14.5M21 9.5 16 14.5"/></svg>';
+  $('btnAudio').classList.toggle('on', armed);
+}
+ $('btnAudio').addEventListener('click', ()=>{
+  armed = !armed;
+  SirenAudio.setArmed(armed);
+  setAudioIc();
+  log(armed ? 'SIREN AUDIO ARMED' : 'SIREN AUDIO DISARMED');
+  if(!armed) SirenAudio.stop();
+  refreshUI();
+});
+setAudioIc();
+ $('stateInput').value = STATE;
+ $('stateInput').addEventListener('change', e=>{
+  const v = e.target.value.trim().toUpperCase();
+  if(!/^[A-Z]{2}$/.test(v) || v === STATE){ e.target.value = STATE; return; }
+  switchState(v, true, true);
+});
+ $('chipAll').addEventListener('click', ()=>{ feedMode='all'; $('chipAll').classList.add('active'); $('chipNet').classList.remove('active'); renderFeed(); renderPolys(); renderLegend(); });
+ $('chipNet').addEventListener('click', ()=>{ feedMode='net'; $('chipNet').classList.add('active'); $('chipAll').classList.remove('active'); renderFeed(); renderPolys(); renderLegend(); });
+ $('locateBtn').addEventListener('click', fitNet);
+ $('btnL').addEventListener('click', ()=>$('sirenPanel').classList.toggle('off'));
+ $('btnR').addEventListener('click', ()=>$('alertPanel').classList.toggle('off'));
+ $('bootRetry').addEventListener('click', ()=>{ $('bootRetry').classList.add('hidden'); fetchAlerts(); });
+document.addEventListener('keydown', e=>{
+  if(e.key === '/' && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)){
+    e.preventDefault(); $('q').focus();
+  }
+  if(e.key === 'Escape'){
+    if(document.activeElement === $('q')){ hideRes(); $('q').blur(); return; }
+    if(picking){ cancelPick(); return; }
+    if(!modalWrap.classList.contains('hidden')) closeModal();
+  }
+});
+window.addEventListener('offline', ()=>{ setStatus('err'); log('NETWORK OFFLINE', 'err'); toast('NETWORK OFFLINE', 'warn'); });
+window.addEventListener('online', ()=>{ log('NETWORK RESTORED', 'ok'); fetchAlerts(); });
+
+/* ---------- boot ---------- */
+async function boot(){
+  $('chipAll').textContent = 'ALL ' + STATE;
+  if(window.innerWidth < 1080){ $('sirenPanel').classList.add('off'); $('alertPanel').classList.add('off'); }
+  log('NET CONTROLLER ONLINE');
+  try{
+    await loadDataset();
+    loadSirensForState(STATE, false);
+    log(`DATASET LOADED · ${Object.keys(BYSTATE||{}).length} STATES · ${sites.length} SIRENS IN ${STATE}`, 'ok');
+  }catch(e){
+    log('DATASET LOAD FAILED — SERVE THIS FOLDER OVER HTTP (fetch is blocked on file://)', 'warn');
+    console.error(e);
+  }
+  /* restore watch point (and its feed state) if returning user */
+  let w0 = null;
+  try{ w0 = JSON.parse(localStorage.getItem('wxwatch') || 'null'); }catch(e){}
+  /* restore last pan/zoom if returning (scoped to the restored state) */
+  let v0 = null;
+  try{ v0 = JSON.parse(localStorage.getItem('wxview') || 'null'); }catch(e){}
+  if(w0 && isFinite(w0.lat) && isFinite(w0.lng)){
+    watch = w0;
+    drawWatch();
+    if(w0.state && /^[A-Z]{2}$/.test(w0.state)){
+      STATE = w0.state;
+      localStorage.setItem('wxstate', STATE);
+      loadSirensForState(STATE, false);   /* load curated sirens for the restored state */
+    }
+    map.setView([watch.lat, watch.lng], 10);
+    maybeSwitchNet();   /* switch feed to the watch's state if it differs */
+    log(`WATCH POINT RESTORED · ${(watch.city||watch.label||'').split(',')[0].toUpperCase()}`);
+  }else if(v0 && isFinite(v0.lat) && isFinite(v0.lng) && v0.state === STATE){
+    /* returning user — reopen exactly where they left off (centre + zoom) */
+    map.setView([v0.lat, v0.lng], v0.zoom);
+  }else if(STATE === HOME.state){
+    /* cold start with no saved location — open on Tampa */
+    map.setView([HOME.lat, HOME.lng], HOME.zoom);
+  }else{
+    fitNet();
+  }
+  updLoc();
+  applyTheme();
+  updZoomCls();
+  playIc();
+  syncHdr();
+  setTimeout(syncHdr, 1200);   /* re-measure after web fonts settle */
+  setRadar(radarOn);
+  syncPending = true;
+  tick();
+  fetchAlerts();   /* first sync — toasts suppressed until booted */
+  if(!localStorage.getItem('wxhint')){
+    setTimeout(()=>toast('TIP · PRESS / TO SEARCH CITY OR ZIP · SITES MANAGES USER SIRENS · TEST DRILLS THE NET', 'info', 9000), 1500);
+    localStorage.setItem('wxhint', '1');
+  }
+}
+boot();
+</script>
+</body>
+</html>
