@@ -1866,33 +1866,82 @@ async function scanOsm(){
 /* ---------- radar (RainViewer loop, IEM fallback) ---------- */
 let radarOn = localStorage.getItem('wxradar') !== '0';   /* on by default, remembers opt-out */
 let radarFrames = [], radarIx = -1, radarPlaying = true, radarTimer = null;
-let radarFallback = null, curFrameLayer = null, pastLen = 0, radarAttr = false;
-const radarLayers = new Map();
+let radarFallback = null, curLayer = null, nextLayer = null;
+let curIx = -1, nextIx = -1, switching = false, pastLen = 0, radarAttr = false;
+const liveLayers = new Set();          /* every radar frame layer currently on the map */
 function radarAttrAdd(txt){
   if(radarAttr) return;
   radarAttr = true;
   map.attributionControl.addAttribution(txt);
 }
-function frameLayer(f){
-  if(radarLayers.has(f.path)) return radarLayers.get(f.path);
+function makeLayer(path){
   /* RainViewer free tiles support zoom 0-7 ONLY — higher native zooms return a
-     "Zoom Level Not Supported" placeholder; Leaflet upscales z7 above that. */
-  const l = L.tileLayer(`https://tilecache.rainviewer.com${f.path}/256/{z}/{x}/{y}/6/1_1.png`,
+     "Zoom Level Not Supported" placeholder; Leaflet upscales z7 above that.
+     Opacity starts at 0; a frame is only faded in once its tiles are actually
+     painted, so the loop never flashes a blank frame. */
+  const l = L.tileLayer(`https://tilecache.rainviewer.com${path}/256/{z}/{x}/{y}/6/1_1.png`,
     {pane:'radar', opacity:0, maxNativeZoom:7, maxZoom:19, attribution:''});
-  radarLayers.set(f.path, l);
+  l._ready = false;
+  l.on('load', ()=>{ l._ready = true; });
+  liveLayers.add(l);
   return l;
 }
-function showFrame(ix){
+/* Run cb once `layer` has painted its tiles for the CURRENT view. A short
+   safety timeout guarantees the loop can never deadlock on a slow/offline
+   frame — we simply hold the current frame instead of showing a gap. */
+function whenReady(layer, cb){
+  if(layer._ready){ cb(); return; }
+  let done = false;
+  const fire = ()=>{ if(done) return; done = true; layer._ready = true; layer.off('load', fire); clearTimeout(t); cb(); };
+  layer.on('load', fire);
+  const t = setTimeout(fire, 1500);
+}
+/* Create (or reuse) the next frame's layer and let it preload underneath. */
+function preload(ix){
   if(!radarFrames.length) return;
-  radarIx = ((ix % radarFrames.length) + radarFrames.length) % radarFrames.length;
-  const f = radarFrames[radarIx];
-  const l = frameLayer(f);
-  if(!map.hasLayer(l)) l.addTo(map);
-  l.setOpacity(.78);
-  if(curFrameLayer && curFrameLayer !== l) curFrameLayer.setOpacity(0);
-  curFrameLayer = l;
-  const isNow = radarIx >= pastLen;
-  $('radarTime').textContent = hhmm(new Date(f.ts*1000)) + (isNow ? '+' : '');
+  ix = ((ix % radarFrames.length) + radarFrames.length) % radarFrames.length;
+  if(curIx === ix || nextIx === ix) return;
+  const f = radarFrames[ix];
+  const l = makeLayer(f.path);
+  l.addTo(map); l.setOpacity(0);
+  nextLayer = l; nextIx = ix;
+}
+function showFrame(ix, instant){
+  if(!radarFrames.length) return;
+  ix = ((ix % radarFrames.length) + radarFrames.length) % radarFrames.length;
+  radarIx = ix;
+  const f = radarFrames[ix];
+  /* reuse the already-on-map layer if it is the one we want */
+  let layer = (curLayer && curIx === ix) ? curLayer : (nextLayer && nextIx === ix) ? nextLayer : null;
+  if(!layer){ layer = makeLayer(f.path); layer.addTo(map); layer.setOpacity(0); }
+  if(instant){
+    /* jump / initial: drop every other radar layer, show this one immediately */
+    liveLayers.forEach(l=>{ if(l !== layer && map.hasLayer(l)) map.removeLayer(l); });
+    liveLayers.clear(); liveLayers.add(layer);
+    curLayer = layer; curIx = ix; nextLayer = null; nextIx = -1; switching = false;
+    layer.setOpacity(.78);
+    $('radarTime').textContent = hhmm(new Date(f.ts*1000)) + (ix >= pastLen ? '+' : '');
+    preload(ix + 1);
+    return;
+  }
+  /* crossfade: keep the CURRENT frame fully visible until the NEXT one has
+     painted, then fade it in and retire the old layer (freeing its tiles so a
+     zoom no longer triggers a request storm across every saved frame). */
+  switching = true;
+  nextLayer = layer; nextIx = ix;
+  layer.setOpacity(0);
+  whenReady(layer, ()=>{
+    if(nextLayer !== layer || curIx === ix) return;   /* superseded by a later advance */
+    const old = curLayer;
+    layer.setOpacity(.78);
+    if(old && old !== layer){
+      old.setOpacity(0);
+      setTimeout(()=>{ if(curLayer !== old && map.hasLayer(old)) map.removeLayer(old); }, 600);
+    }
+    curLayer = layer; curIx = ix; switching = false;
+    $('radarTime').textContent = hhmm(new Date(f.ts*1000)) + (ix >= pastLen ? '+' : '');
+    preload(ix + 1);
+  });
 }
 function playIc(){
   $('btnPlay').innerHTML = radarPlaying
@@ -1902,8 +1951,9 @@ function playIc(){
 function startLoop(){
   if(radarTimer) return;
   radarTimer = setInterval(()=>{
-    if(document.hidden || !radarOn || radarFallback) return;
-    if(radarPlaying && radarFrames.length > 1) showFrame(radarIx + 1);
+    if(document.hidden || !radarOn || radarFallback || !radarPlaying) return;
+    if(radarFrames.length < 2 || switching) return;   /* never outrun the paint */
+    showFrame(radarIx + 1);
   }, 500);
 }
 async function loadRadarMeta(){
@@ -1915,19 +1965,22 @@ async function loadRadarMeta(){
     const now = (j.radar && j.radar.nowcast) || [];
     if(!past.length) throw 0;
     if(radarFallback){ map.removeLayer(radarFallback); radarFallback = null; }
+    /* tear down old frame layers — frame paths are timestamped and change each fetch */
+    liveLayers.forEach(l=>{ if(map.hasLayer(l)) map.removeLayer(l); });
+    liveLayers.clear(); curLayer = nextLayer = null; curIx = nextIx = -1; switching = false;
     pastLen = past.length;
     radarFrames = [...past, ...now].map(f=>({ts:f.time, path:f.path}));
     $('btnPlay').classList.remove('hidden');
     $('radarTime').classList.remove('hidden');
     playIc();
-    showFrame(radarIx < 0 ? pastLen - 1 : Math.min(radarIx, radarFrames.length-1));
+    showFrame(radarIx < 0 ? pastLen - 1 : Math.min(radarIx, radarFrames.length-1), true);
     radarAttrAdd(' · Radar © RainViewer');
   }catch(e){
     if(!radarFallback){
       radarFallback = L.tileLayer('https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png',
         {pane:'radar', opacity:.72, maxNativeZoom:7, maxZoom:19, attribution:''}).addTo(map);
-      radarLayers.forEach(l=>{ if(map.hasLayer(l)) l.setOpacity(0); });
-      curFrameLayer = null;
+      liveLayers.forEach(l=>{ if(map.hasLayer(l)) l.setOpacity(0); });
+      curLayer = nextLayer = null; curIx = nextIx = -1;
       $('radarTime').classList.remove('hidden');
       $('radarTime').textContent = 'N0Q';
       $('btnPlay').classList.add('hidden');
@@ -1943,11 +1996,12 @@ function setRadar(on){
   $('refl').classList.toggle('hidden', !on);
   if(on){
     if(radarFallback) radarFallback.addTo(map);
-    else if(radarFrames.length) showFrame(radarIx < 0 ? pastLen-1 : radarIx);
+    else if(radarFrames.length) showFrame(radarIx < 0 ? pastLen - 1 : radarIx, true);
     else loadRadarMeta();
     startLoop();
   }else{
-    radarLayers.forEach(l=>{ if(map.hasLayer(l)) l.setOpacity(0); });
+    liveLayers.forEach(l=>{ if(map.hasLayer(l)) map.removeLayer(l); });
+    liveLayers.clear(); curLayer = nextLayer = null; curIx = nextIx = -1; switching = false;
     if(radarFallback && map.hasLayer(radarFallback)) map.removeLayer(radarFallback);
     $('radarTime').textContent = '--:--';
   }
@@ -1956,6 +2010,7 @@ function setRadar(on){
  $('btnPlay').addEventListener('click', ()=>{ radarPlaying = !radarPlaying; playIc(); });
  $('radarTime').addEventListener('click', ()=>{ radarPlaying = false; playIc(); showFrame(radarIx + 1); });
 setInterval(()=>{ if(radarOn && !document.hidden && !radarFallback) loadRadarMeta(); }, 6*60*1000);
+
 
 /* ---------- tile themes ---------- */
 let themeIx = Math.min(+(localStorage.getItem('wxtile')||0), TILE_THEMES.length-1) || 0;
